@@ -58,17 +58,17 @@ export default function NavBar() {
         AI Events
       </Link>
 
-      <form onSubmit={onSubmit} className="flex flex-1 max-w-2xl mx-6 items-center gap-3">
+      <form onSubmit={onSubmit} className="flex flex-1 max-w-3xl mx-6 items-center gap-3">
         <Input placeholder="Search events..." value={q} onChange={(e) => setQ(e.target.value)} className="flex-1" />
 
         {/* State selector (shadcn Select) */}
         <Select
           value={stateSelection}
           onValueChange={(val) => setStateSelection(val)}
-          className="w-48"
+          className="w-40"
         >
           <SelectTrigger>
-            <SelectValue placeholder="Select State" />
+            <SelectValue placeholder="All States" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="All">All States</SelectItem>
@@ -82,20 +82,18 @@ export default function NavBar() {
         <Select
           value={city}
           onValueChange={(val) => setCity(val)}
-          className="w-48"
+          className="w-40"
         >
           <SelectTrigger>
-            <SelectValue placeholder="City" />
+            <SelectValue placeholder="All Cities" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="All">All</SelectItem>
+            <SelectItem value="All">All Cities</SelectItem>
             {cities.map((c) => (
               <SelectItem key={c} value={c}>{c}</SelectItem>
             ))}
           </SelectContent>
         </Select>
-
-        <Button type="submit">Search</Button>
       </form>
 
       <div className="space-x-4 flex items-center">

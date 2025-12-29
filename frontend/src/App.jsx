@@ -2,7 +2,7 @@ import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { useEffect } from 'react';
 import { useAuth } from '@clerk/clerk-react';
 import NavBar from './components/NavBar';
-import FeaturedCarousel from './components/FeaturedCarousel';
+
 import Home from './pages/Home';
 import Explore from './pages/Explore';
 import EventDetails from './pages/EventDetails';
@@ -29,7 +29,6 @@ export default function App() {
     <BrowserRouter>
       <div className="min-h-screen bg-background text-foreground">
         <NavBar />
-        <FeaturedCarousel />
         <RouteLogger />
         <Routes>
           <Route path="/" element={<Home />} />

@@ -72,22 +72,28 @@ export default function EventDetails() {
 
   return (
     <div className="p-6 max-w-6xl mx-auto">
+      <div className="rounded overflow-hidden mb-6 relative">
+        <div className="w-full h-[30vh] md:h-[40vh] bg-cover bg-center" style={{ backgroundImage: `url(${cover})` }} />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent z-10" />
+        <div className="absolute bottom-8 left-8 z-20 text-white max-w-3xl">
+          <h1 className="text-2xl md:text-4xl lg:text-5xl font-extrabold leading-tight">{event.title}</h1>
+          <p className="mt-2 text-sm md:text-base text-muted line-clamp-2">{event.description}</p>
+          <div className="mt-3 flex items-center gap-4 text-sm text-muted">
+            <div>{new Date(event.date).toLocaleDateString()}</div>
+            <div>•</div>
+            <div>{event.location?.city || 'Online'}</div>
+            <div>•</div>
+            <div>{(event.seatsBooked || 0)} registered</div>
+          </div>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left column - main content */}
         <div className="lg:col-span-2">
-          <div className="rounded overflow-hidden mb-4">
-            <img src={cover} alt="cover" className="w-full h-80 object-cover" />
-          </div>
-
           <div className="bg-card p-6 rounded">
-            <h1 className="text-3xl font-bold text-white">{event.title}</h1>
-            <div className="flex items-center gap-2 mt-2">
-              <Badge>{event.category}</Badge>
-              <div className="text-sm text-muted">{new Date(event.date).toLocaleString()}</div>
-            </div>
-
+            <h2 className="text-2xl font-bold text-white">About this event</h2>
             <Separator className="my-4" />
-
             <div className="text-muted">{event.description}</div>
 
             <Separator className="my-4" />
@@ -136,6 +142,12 @@ export default function EventDetails() {
                 }
               }}>Share</Button>
             </div>
+
+            <Separator className="my-4" />
+
+            <div className="text-sm text-muted">Location</div>
+            <div className="text-white font-semibold">{event.venue}</div>
+            <div className="text-muted">{event.location?.city || 'Online'}{event.location?.state ? `, ${event.location.state}` : ''}</div>
           </div>
         </div>
       </div>
