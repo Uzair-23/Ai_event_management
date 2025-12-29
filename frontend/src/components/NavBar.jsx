@@ -1,12 +1,69 @@
-import { Link } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { SignedIn, SignedOut, UserButton } from '@clerk/clerk-react';
+import { Input } from './ui/input';
+import { Select } from './ui/select';
+import { Button } from './ui/button';
+import API from '../services/api';
 
 export default function NavBar() {
+  const [q, setQ] = useState('');
+  const [city, setCity] = useState('All');
+  const [cities, setCities] = useState(['All']);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const fetchCities = async () => {
+      try {
+        const { data } = await API.get('/events/cities');
+        setCities(['All', ...data.cities]);
+      } catch (err) {
+        console.error('cities', err);
+      }
+    };
+    fetchCities();
+  }, []);
+
+  // debounce navigation (only when user has interacted)
+  useEffect(() => {
+    const shouldNavigate = q || (city && city !== 'All');
+    if (!shouldNavigate) return; // don't auto-navigate on mount
+
+    const t = setTimeout(() => {
+      const params = new URLSearchParams();
+      if (q) params.set('q', q);
+      if (city && city !== 'All') params.set('city', city);
+      const target = `/explore${params.toString() ? `?${params.toString()}` : ''}`;
+      console.log('[NAV DEBUG] NavBar auto-navigate to', target);
+      navigate(target);
+    }, 500);
+    return () => clearTimeout(t);
+  }, [q, city, navigate]);
+
+  const onSubmit = (e) => {
+    e.preventDefault();
+    const params = new URLSearchParams();
+    if (q) params.set('q', q);
+    if (city && city !== 'All') params.set('city', city);
+    navigate(`/explore?${params.toString()}`);
+  };
+
   return (
     <nav className="p-4 flex items-center justify-between bg-card/60 backdrop-blur-sm">
       <Link to="/" className="text-xl font-semibold">
         AI Events
       </Link>
+
+      <form onSubmit={onSubmit} className="flex flex-1 max-w-2xl mx-6 items-center gap-3">
+        <Input placeholder="Search events..." value={q} onChange={(e) => setQ(e.target.value)} className="flex-1" />
+        <Select value={city} onChange={(e) => setCity(e.target.value)} className="w-48">
+          {cities.map((c) => (
+            <option key={c} value={c}>{c}</option>
+          ))}
+        </Select>
+        <Button type="submit">Search</Button>
+      </form>
+
       <div className="space-x-4 flex items-center">
         <Link to="/explore" className="px-3 py-1 rounded hover:bg-primary/10 transition">
           Explore

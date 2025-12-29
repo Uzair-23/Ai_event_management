@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from 'react-router-dom';
 import API from "../services/api";
 import { useUser, SignedIn, SignedOut } from "@clerk/clerk-react";
 
@@ -45,6 +46,8 @@ export default function CreateEvent() {
   };
 
   // Publish event
+  const navigate = useNavigate();
+
   const publish = async () => {
     if (!isSignedIn || !user) {
       alert("Please sign in first");
@@ -69,7 +72,8 @@ export default function CreateEvent() {
       await API.post("/events", payload);
 
       alert("Event created successfully 🎉");
-      window.location.href = "/explore";
+      console.log('[NAV DEBUG] CreateEvent navigating to /explore');
+      navigate('/explore');
     } catch (err) {
       console.error(err);
       alert("Error creating event");

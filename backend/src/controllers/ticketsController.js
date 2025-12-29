@@ -13,27 +13,36 @@ exports.registerForEvent = async (req, res) => {
     if (!eventId) return res.status(400).json({ message: 'eventId required' });
     if (!userId) return res.status(400).json({ message: 'userId required' });
 
-    const event = await Event.findById(eventId);
-    if (!event) return res.status(404).json({ message: 'Event not found' });
-    if (event.seatsBooked >= event.totalSeats) return res.status(400).json({ message: 'Sold out' });
-
     // prevent duplicate registration
-    const existing = await Ticket.findOne({ event: event._id, userId });
+    const existing = await Ticket.findOne({ event: eventId, userId });
     if (existing) return res.status(400).json({ message: 'User already registered' });
+
+    // atomically increment seats if available
+    const updatedEvent = await Event.findOneAndUpdate(
+      { _id: eventId, $expr: { $lt: ['$seatsBooked', '$totalSeats'] } },
+      { $inc: { seatsBooked: 1 } },
+      { new: true }
+    );
+
+    if (!updatedEvent) return res.status(400).json({ message: 'Sold out' });
 
     // create ticket
     const ticketId = uuidv4();
     const qrData = await generateQRCodeDataUrl(`ticket:${ticketId}`);
-    const ticket = new Ticket({ ticketId, event: event._id, userId, qrData });
-    await ticket.save();
 
-    // increment seats
-    event.seatsBooked += 1;
-    await event.save();
+    let ticket;
+    try {
+      ticket = new Ticket({ ticketId, event: eventId, userId, qrData });
+      await ticket.save();
+    } catch (err) {
+      // rollback seat increment
+      await Event.findByIdAndUpdate(eventId, { $inc: { seatsBooked: -1 } });
+      throw err;
+    }
 
     // notify organizer via sockets
     const io = getIo();
-    if (io) io.to(`organizer_${event.organizer}`).emit('registration', { eventId: event._id, ticketId });
+    if (io) io.to(`organizer_${updatedEvent.organizer}`).emit('registration', { eventId: updatedEvent._id, ticketId });
 
     // return ticket with event data populated for convenience
     const populated = await ticket.populate('event');

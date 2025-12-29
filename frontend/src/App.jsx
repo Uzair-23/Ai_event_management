@@ -1,4 +1,6 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
+import { useEffect } from 'react';
+import { useAuth } from '@clerk/clerk-react';
 import NavBar from './components/NavBar';
 import Home from './pages/Home';
 import Explore from './pages/Explore';
@@ -13,10 +15,20 @@ import { ClerkProvider } from '@clerk/clerk-react';
 
 
 export default function App() {
+  function RouteLogger() {
+    const location = useLocation();
+    const { isSignedIn, isLoaded } = useAuth();
+    useEffect(() => {
+      console.log('[NAV DEBUG] path=', location.pathname + location.search, 'signedIn=', isLoaded ? isSignedIn : 'loading');
+    }, [location, isSignedIn, isLoaded]);
+    return null;
+  }
+
   return (
     <BrowserRouter>
       <div className="min-h-screen bg-background text-foreground">
         <NavBar />
+        <RouteLogger />
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/explore" element={<Explore />} />

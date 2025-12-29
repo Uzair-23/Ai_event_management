@@ -36,7 +36,10 @@ export default function EventDetails() {
   }, [user, isSignedIn, id]);
 
   const register = async () => {
-    if (!isSignedIn || !user) return navigate('/login');
+    if (!isSignedIn || !user) {
+      console.log('[NAV DEBUG] EventDetails register -> redirect to /login (not signed in)');
+      return navigate('/login');
+    }
     if (event.seatsBooked >= event.totalSeats) return alert('Event is full');
     if (alreadyRegistered) return alert('You are already registered');
 
@@ -44,6 +47,7 @@ export default function EventDetails() {
     try {
       const { data } = await API.post(`/events/${id}/register`, { userId: user.id });
       // success - navigate to My Tickets to show the ticket
+      console.log('[NAV DEBUG] EventDetails registration success, navigating to /tickets');
       navigate('/tickets');
     } catch (err) {
       console.error(err);

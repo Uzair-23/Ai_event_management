@@ -16,6 +16,8 @@ const EventSchema = new mongoose.Schema({
   totalSeats: { type: Number, default: 0 },
   seatsBooked: { type: Number, default: 0 },
   coverImage: { type: String },
+  price: { type: Number, default: 0 },
+  isFeatured: { type: Boolean, default: false },
   // store organizer as Clerk user id (string) or reference to internal User
   organizer: { type: String, index: true },
   createdAt: { type: Date, default: Date.now },

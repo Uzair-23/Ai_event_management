@@ -4,6 +4,9 @@ const { authMiddleware, requireRole } = require('../middlewares/auth');
 const eventsController = require('../controllers/eventsController');
 
 router.get('/', eventsController.listEvents);
+router.get('/search', eventsController.searchEvents);
+router.get('/featured', eventsController.featuredEvents);
+router.get('/cities', eventsController.getCities);
 router.get('/:id', eventsController.getEvent);
 
 // register for event (accepts Clerk userId in body)

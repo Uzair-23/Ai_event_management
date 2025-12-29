@@ -7,7 +7,10 @@ export function RequireAuth({ children }) {
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (isLoaded && !isSignedIn) navigate('/login');
+    if (isLoaded && !isSignedIn) {
+      console.log('[AUTH DEBUG] RequireAuth redirecting to /login - isLoaded:', isLoaded, 'isSignedIn:', isSignedIn);
+      navigate('/login');
+    }
   }, [isLoaded, isSignedIn, navigate]);
 
   if (!isLoaded || !isSignedIn) return null; // or a loader
@@ -21,7 +24,10 @@ export function RequireOrganizer({ children }) {
   useEffect(() => {
     if (!isLoaded) return;
     const role = user?.publicMetadata?.role || 'USER';
-    if (role !== 'ORGANIZER') navigate('/');
+    if (role !== 'ORGANIZER') {
+      console.log('[AUTH DEBUG] RequireOrganizer redirecting to / - role:', role);
+      navigate('/');
+    }
   }, [isLoaded, user, navigate]);
 
   if (!isLoaded) return null;

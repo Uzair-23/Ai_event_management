@@ -5,9 +5,11 @@ import EventCard from '../components/EventCard';
 
 export default function Home() {
   const [events, setEvents] = useState([]);
+  const [featured, setFeatured] = useState([]);
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('All');
   const [city, setCity] = useState('All');
+  const [cities, setCities] = useState(['All']);
 
   useEffect(() => {
     const fetch = async () => {
@@ -15,6 +17,27 @@ export default function Home() {
       setEvents(data.events);
     };
     fetch();
+  }, []);
+
+  useEffect(() => {
+    const fetchFeatured = async () => {
+      try {
+        const { data } = await API.get('/events/featured');
+        setFeatured(data.events || []);
+      } catch (err) {
+        console.error('featured', err);
+      }
+    };
+    const fetchCities = async () => {
+      try {
+        const { data } = await API.get('/events/cities');
+        setCities(['All', ...data.cities]);
+      } catch (err) {
+        console.error('cities', err);
+      }
+    };
+    fetchFeatured();
+    fetchCities();
   }, []);
 
   const filtered = events.filter((e) => {
@@ -42,13 +65,30 @@ export default function Home() {
                 {Array.from(new Set(events.map(e => e.category))).map(c => <option key={c}>{c}</option>)}
               </select>
               <select value={city} onChange={(e) => setCity(e.target.value)} className="p-3 bg-input rounded text-white">
-                <option>All</option>
-                {Array.from(new Set(events.map(e => e.location?.city || 'Online'))).map(c => <option key={c}>{c}</option>)}
+                {cities.map(c => <option key={c}>{c}</option>)}
               </select>
             </div>
           </div>
           <div className="w-full md:w-1/3">
             <div className="rounded-lg overflow-hidden h-40 bg-cover bg-center" style={{ backgroundImage: `url('/hero.jpg')` }} />
+          </div>
+        </div>
+      </div>
+
+      {/* Featured */}
+      <div className="mb-6">
+        <div className="flex justify-between items-center mb-3">
+          <h2 className="text-2xl font-bold">Featured</h2>
+          <a href="/explore" className="text-sm text-primary">View All →</a>
+        </div>
+        <div className="overflow-x-auto no-scrollbar -mx-4 px-4">
+          <div className="flex gap-4">
+            {featured.map((e) => (
+              <motion.div key={e._id} whileHover={{ y: -6 }} className="min-w-[320px]">
+                <EventCard event={e} />
+              </motion.div>
+            ))}
+            {featured.length === 0 && <div className="text-muted">No featured events.</div>}
           </div>
         </div>
       </div>

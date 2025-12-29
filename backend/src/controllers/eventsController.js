@@ -69,9 +69,71 @@ exports.listEvents = async (req, res) => {
 
 exports.getEvent = async (req, res) => {
   try {
-    const event = await Event.findById(req.params.id).populate('organizer', 'name email');
+    const event = await Event.findById(req.params.id);
     if (!event) return res.status(404).json({ message: 'Event not found' });
-    res.json({ event });
+    // attach convenient fields
+    const payload = {
+      _id: event._id,
+      title: event.title,
+      description: event.description,
+      category: event.category,
+      venue: event.venue,
+      location: event.location,
+      date: event.date,
+      coverImage: event.coverImage,
+      totalSeats: event.totalSeats,
+      registeredCount: event.seatsBooked,
+      price: event.price || 0,
+      isFeatured: event.isFeatured || false,
+      createdAt: event.createdAt,
+    };
+    res.json({ event: payload });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// Featured events
+exports.featuredEvents = async (req, res) => {
+  try {
+    const events = await Event.find({ isFeatured: true }).sort({ date: 1 }).limit(10);
+    res.json({ events });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// Search endpoint
+exports.searchEvents = async (req, res) => {
+  try {
+    const { q, city, page = 1, limit = 20 } = req.query;
+    const filter = {};
+    if (city && city !== 'All') filter['location.city'] = city;
+
+    if (q) {
+      // prefer text search; but allow fallback to regex
+      filter.$text = { $search: q };
+    }
+
+    // if q provided but no text match supported, try regex fallback (handled by client if needed)
+    let query = Event.find(filter).sort({ date: 1 });
+    query = query.skip((page - 1) * limit).limit(Number(limit));
+    const events = await query.exec();
+    const total = await Event.countDocuments(filter);
+    res.json({ events, total, page: Number(page), pages: Math.ceil(total / limit) });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// distinct cities
+exports.getCities = async (req, res) => {
+  try {
+    const cities = await Event.distinct('location.city');
+    res.json({ cities: cities.filter(Boolean) });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: 'Server error' });

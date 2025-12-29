@@ -8,6 +8,7 @@ export default function MyTickets() {
   const { user, isSignedIn } = useUser();
 
   useEffect(() => {
+    console.log('[NAV DEBUG] MyTickets mount - isSignedIn=', isSignedIn, 'user=', user?.id);
     const fetch = async () => {
       setLoading(true);
       if (!isSignedIn || !user) {
