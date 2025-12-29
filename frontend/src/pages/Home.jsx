@@ -33,7 +33,7 @@ export default function Home() {
       {/* Hero Carousel */}
       <FeaturedCarousel />
 
-      <div className="max-w-7xl mx-auto px-6 py-8">
+      <div className="max-w-7xl mx-auto px-6 py-8 ">
         {/* Events Near You */}
         <section className="mb-12">
           <div className="flex justify-between items-center mb-4">
