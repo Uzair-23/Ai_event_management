@@ -12,11 +12,12 @@ export default function Explore() {
     const params = new URLSearchParams(location.search);
     const q = params.get('q') || '';
     const city = params.get('city') || '';
+    const state = params.get('state') || '';
 
     const fetch = async () => {
       setLoading(true);
       try {
-        const { data } = await API.get('/events/search', { params: { q, city, page: 1, limit: 24 } });
+        const { data } = await API.get('/events/search', { params: { q, city, state, page: 1, limit: 24 } });
         setEvents(data.events);
       } catch (err) {
         console.error('search', err);

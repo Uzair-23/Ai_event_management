@@ -14,6 +14,7 @@ export default function CreateEvent() {
     date: "",
     time: "",
     location: "",
+    state: "",
     totalSeats: 100,
   });
 
@@ -65,6 +66,7 @@ export default function CreateEvent() {
         time: form.time,
         venue: form.venue,
         location: form.location,
+        state: form.state,
         totalSeats: form.totalSeats,
         organizerId: user.id, // Clerk user ID
       };
@@ -138,9 +140,20 @@ export default function CreateEvent() {
               onChange={(e) =>
                 setForm({ ...form, location: e.target.value })
               }
-              placeholder="Location"
+              placeholder="City (e.g. Bengaluru)"
               className="w-full p-3 bg-input rounded text-white"
             />
+
+            <select
+              value={form.state}
+              onChange={(e) => setForm({ ...form, state: e.target.value })}
+              className="w-full p-3 bg-input rounded text-white"
+            >
+              <option value="">Select State</option>
+              <option>Karnataka</option>
+              <option>Maharashtra</option>
+              <option>Delhi</option>
+            </select>
 
             <div className="grid grid-cols-2 gap-2">
               <input

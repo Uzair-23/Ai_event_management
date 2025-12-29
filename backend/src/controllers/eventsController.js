@@ -12,6 +12,7 @@ exports.createEvent = async (req, res) => {
     time: z.string().optional(),
     venue: z.string().optional(),
     location: z.string().optional(),
+    state: z.string().optional(),
     totalSeats: z.number().int().nonnegative().optional(),
     organizerId: z.string().min(1),
   });
@@ -27,12 +28,17 @@ exports.createEvent = async (req, res) => {
       venue: parsed.venue,
       totalSeats: parsed.totalSeats || 0,
       organizer: parsed.organizerId,
+      location: {
+        city: parsed.location || undefined,
+        state: parsed.state || undefined,
+      },
     };
 
     // fetch cover image based on category/title
     const query = `${data.category} ${data.title}`;
     const image = await fetchImageForQuery(query);
-    if (image) data.coverImage = image;
+    // fallback to source.unsplash which doesn't require the API key
+    data.coverImage = image || `https://source.unsplash.com/featured/?${encodeURIComponent(query)}`;
 
     const event = new Event(data);
     await event.save();
@@ -47,10 +53,11 @@ exports.createEvent = async (req, res) => {
 // Simple list with pagination and filters
 exports.listEvents = async (req, res) => {
   try {
-    const { page = 1, limit = 12, category, q, city } = req.query;
+    const { page = 1, limit = 12, category, q, city, state } = req.query;
     const filter = {};
     if (category) filter.category = category;
     if (city) filter['location.city'] = city;
+    if (state) filter['location.state'] = state;
     if (q) filter.$text = { $search: q };
 
     const events = await Event.find(filter)
@@ -97,7 +104,11 @@ exports.getEvent = async (req, res) => {
 // Featured events
 exports.featuredEvents = async (req, res) => {
   try {
-    const events = await Event.find({ isFeatured: true }).sort({ date: 1 }).limit(10);
+    let events = await Event.find({ isFeatured: true }).sort({ date: 1 }).limit(10);
+    // fallback to latest events if none are featured
+    if (!events || events.length === 0) {
+      events = await Event.find().sort({ date: 1 }).limit(10);
+    }
     res.json({ events });
   } catch (err) {
     console.error(err);
@@ -108,9 +119,10 @@ exports.featuredEvents = async (req, res) => {
 // Search endpoint
 exports.searchEvents = async (req, res) => {
   try {
-    const { q, city, page = 1, limit = 20 } = req.query;
+    const { q, city, state, page = 1, limit = 20 } = req.query;
     const filter = {};
     if (city && city !== 'All') filter['location.city'] = city;
+    if (state && state !== 'All') filter['location.state'] = state;
 
     if (q) {
       // prefer text search; but allow fallback to regex
