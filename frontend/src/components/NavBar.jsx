@@ -20,6 +20,11 @@ export default function NavBar() {
   const [scrolled, setScrolled] = useState(false);
   const MotionLink = motion(Link);
 
+  const underlineVariants = {
+    initial: { scaleX: 0 },
+    hover: { scaleX: 1 }
+  };
+
   // flag to avoid navigation loops when syncing state from URL
   const isSyncingRef = useRef(false);
   const syncTimeoutRef = useRef(null);
@@ -179,8 +184,8 @@ export default function NavBar() {
         className={`mx-auto ${scrolled ? 'max-w-6xl rounded-full' : 'w-full'} glass glass-border border-b border-primary/20 transition-all`}
       >
         <div className="flex items-center justify-between gap-4">
-          <Link to="/" onClick={handleLogoClick} className="text-xl font-extrabold tracking-tight flex items-center gap-2 relative">
-            <span className="bg-clip-text text-transparent bg-gradient-to-r from-neon-violet to-neon-cyan">AI Events</span>
+          <Link to="/" onClick={handleLogoClick} className="flex items-center gap-2 relative">
+            <img src="/logo.png" alt="AI Events" className="h-8 w-auto" />
           </Link>
 
           <form onSubmit={onSubmit} className="flex flex-1 max-w-3xl mx-6 items-center gap-3">
@@ -221,29 +226,39 @@ export default function NavBar() {
           </form>
 
           <div className="space-x-4 flex items-center">
-            <MotionLink whileHover={{ scale: 1.05 }} to="/explore" className="px-3 py-1 rounded text-sm transition group inline-flex flex-col items-center">
-              <span>Explore</span>
-              <span className="block mt-1 h-1 w-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity" style={{ backgroundColor: 'var(--primary)' }} />
+            <MotionLink to="/explore" whileHover="hover" className="px-3 py-1 rounded text-sm transition">
+              <div className="relative inline-block">
+                <span>Explore</span>
+                <motion.div variants={underlineVariants} initial="initial" whileHover="hover" className="absolute left-0 -bottom-1 h-[2px] w-full bg-primary" style={{ transformOrigin: 'center' }} transition={{ duration: 0.3, ease: 'easeInOut' }} />
+              </div>
             </MotionLink>
 
-            <MotionLink whileHover={{ scale: 1.05 }} to="/create" className="px-3 py-1 rounded-full bg-gradient-to-r from-brand-600 to-brand-500 text-white shadow-glow-md hover:from-brand-500 hover:to-brand-600 transition inline-flex items-center justify-center group">
-              <span>Create</span>
-              <span className="block mt-1 h-1 w-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity" style={{ backgroundColor: 'var(--primary)' }} />
+            <MotionLink to="/create" whileHover="hover" className="px-3 py-1 rounded-full bg-gradient-to-r from-brand-600 to-brand-500 text-white shadow-glow-md hover:from-brand-500 hover:to-brand-600 transition inline-flex items-center justify-center">
+              <div className="relative inline-block">
+                <span>Create</span>
+                <motion.div variants={underlineVariants} initial="initial" whileHover="hover" className="absolute left-0 -bottom-1 h-[2px] w-full bg-primary" style={{ transformOrigin: 'center' }} transition={{ duration: 0.3, ease: 'easeInOut' }} />
+              </div>
             </MotionLink>
 
-            <MotionLink whileHover={{ scale: 1.05 }} to="/tickets" className="px-3 py-1 rounded text-sm transition group inline-flex flex-col items-center">
-              <span>My Tickets</span>
-              <span className="block mt-1 h-1 w-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity" style={{ backgroundColor: 'var(--primary)' }} />
+            <MotionLink to="/tickets" whileHover="hover" className="px-3 py-1 rounded text-sm transition">
+              <div className="relative inline-block">
+                <span>My Tickets</span>
+                <motion.div variants={underlineVariants} initial="initial" whileHover="hover" className="absolute left-0 -bottom-1 h-[2px] w-full bg-primary" style={{ transformOrigin: 'center' }} transition={{ duration: 0.3, ease: 'easeInOut' }} />
+              </div>
             </MotionLink>
 
             <SignedOut>
-              <MotionLink whileHover={{ scale: 1.05 }} to="/login" className="px-3 py-1 rounded text-sm transition group inline-flex flex-col items-center">
-                <span>Login</span>
-                <span className="block mt-1 h-1 w-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity" style={{ backgroundColor: 'var(--primary)' }} />
+              <MotionLink to="/login" whileHover="hover" className="px-3 py-1 rounded text-sm transition">
+                <div className="relative inline-block">
+                  <span>Login</span>
+                  <motion.div variants={underlineVariants} initial="initial" whileHover="hover" className="absolute left-0 -bottom-1 h-[2px] w-full bg-primary" style={{ transformOrigin: 'center' }} transition={{ duration: 0.3, ease: 'easeInOut' }} />
+                </div>
               </MotionLink>
-              <MotionLink whileHover={{ scale: 1.05 }} to="/register" className="px-3 py-1 rounded text-sm transition group inline-flex flex-col items-center">
-                <span>Register</span>
-                <span className="block mt-1 h-1 w-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity" style={{ backgroundColor: 'var(--primary)' }} />
+              <MotionLink to="/register" whileHover="hover" className="px-3 py-1 rounded text-sm transition">
+                <div className="relative inline-block">
+                  <span>Register</span>
+                  <motion.div variants={underlineVariants} initial="initial" whileHover="hover" className="absolute left-0 -bottom-1 h-[2px] w-full bg-primary" style={{ transformOrigin: 'center' }} transition={{ duration: 0.3, ease: 'easeInOut' }} />
+                </div>
               </MotionLink>
             </SignedOut>
 
