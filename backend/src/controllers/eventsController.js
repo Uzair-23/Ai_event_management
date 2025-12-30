@@ -15,6 +15,8 @@ exports.createEvent = async (req, res) => {
     state: z.string().optional(),
     totalSeats: z.number().int().nonnegative().optional(),
     organizerId: z.string().min(1),
+    isOnline: z.boolean().optional(),
+    mapLink: z.string().url().optional(),
   });
 
   try {
@@ -25,12 +27,15 @@ exports.createEvent = async (req, res) => {
       description: parsed.description || '',
       category: parsed.category,
       date: parsed.date ? new Date(parsed.date) : undefined,
+      time: parsed.time,
       venue: parsed.venue,
       totalSeats: parsed.totalSeats || 0,
       organizer: parsed.organizerId,
+      isOnline: !!parsed.isOnline,
+      mapLink: parsed.mapLink || undefined,
       location: {
-        city: parsed.location || undefined,
-        state: parsed.state || undefined,
+        city: parsed.isOnline ? 'Virtual' : (parsed.location || undefined),
+        state: parsed.isOnline ? 'N/A' : (parsed.state || undefined),
       },
     };
 
@@ -87,11 +92,14 @@ exports.getEvent = async (req, res) => {
       venue: event.venue,
       location: event.location,
       date: event.date,
+      time: event.time,
       coverImage: event.coverImage,
       totalSeats: event.totalSeats,
       registeredCount: event.seatsBooked,
       price: event.price || 0,
       isFeatured: event.isFeatured || false,
+      isOnline: !!event.isOnline,
+      mapLink: event.mapLink || undefined,
       createdAt: event.createdAt,
     };
     res.json({ event: payload });

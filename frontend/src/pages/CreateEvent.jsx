@@ -1,7 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from 'react-router-dom';
 import API from "../services/api";
 import { useUser, SignedIn, SignedOut } from "@clerk/clerk-react";
+import { Popover, PopoverTrigger, PopoverContent } from '../components/ui/popover';
+import { Calendar } from '../components/ui/calendar';
+import { State, City } from 'country-state-city';
 
 export default function CreateEvent() {
   const { user, isSignedIn } = useUser();
@@ -16,7 +19,13 @@ export default function CreateEvent() {
     location: "",
     state: "",
     totalSeats: 100,
+    isOnline: false,
+    mapLink: "",
   });
+
+  const [selectedDate, setSelectedDate] = useState(null);
+  const [states, setStates] = useState([]);
+  const [cities, setCities] = useState(['All']);
 
   const [aiOutput, setAiOutput] = useState(null);
   const [loadingAI, setLoadingAI] = useState(false);
@@ -49,6 +58,27 @@ export default function CreateEvent() {
   // Publish event
   const navigate = useNavigate();
 
+  // load India states for state/city cascading
+  useEffect(() => {
+    const sts = State.getStatesOfCountry('IN') || [];
+    setStates(sts.map(s => s.name));
+  }, []);
+
+  useEffect(() => {
+    if (!form.state) {
+      setCities(['All']);
+      return;
+    }
+    const s = State.getStatesOfCountry('IN').find(x => x.name === form.state);
+    const iso = s?.isoCode;
+    if (iso) {
+      const cityList = City.getCitiesOfState('IN', iso) || [];
+      setCities(['All', ...cityList.map(c => c.name)]);
+    } else {
+      setCities(['All']);
+    }
+  }, [form.state]);
+
   const publish = async () => {
     if (!isSignedIn || !user) {
       alert("Please sign in first");
@@ -64,11 +94,13 @@ export default function CreateEvent() {
         category: form.category,
         date: form.date,
         time: form.time,
-        venue: form.venue,
-        location: form.location,
-        state: form.state,
+        venue: form.isOnline ? 'Online' : form.venue,
+        location: form.isOnline ? 'Virtual' : form.location,
+        state: form.isOnline ? 'N/A' : form.state,
         totalSeats: form.totalSeats,
         organizerId: user.id, // Clerk user ID
+        isOnline: !!form.isOnline,
+        mapLink: form.isOnline ? undefined : (form.mapLink || undefined),
       };
 
       await API.post("/events", payload);
@@ -126,44 +158,71 @@ export default function CreateEvent() {
               className="w-full p-3 bg-input rounded text-white"
             />
 
-            <input
-              value={form.venue}
-              onChange={(e) =>
-                setForm({ ...form, venue: e.target.value })
-              }
-              placeholder="Venue"
-              className="w-full p-3 bg-input rounded text-white"
-            />
+            {/* Online/Offline toggle */}
+            <div className="flex items-center gap-3">
+              <label className="flex items-center gap-2">
+                <input type="checkbox" className="accent-brand-500" checked={form.isOnline} onChange={(e) => setForm({ ...form, isOnline: e.target.checked })} />
+                <span className="text-sm">Online event</span>
+              </label>
+            </div>
 
-            <input
-              value={form.location}
-              onChange={(e) =>
-                setForm({ ...form, location: e.target.value })
-              }
-              placeholder="City (e.g. Bengaluru)"
-              className="w-full p-3 bg-input rounded text-white"
-            />
+            {!form.isOnline && (
+              <>
+                <input
+                  value={form.venue}
+                  onChange={(e) =>
+                    setForm({ ...form, venue: e.target.value })
+                  }
+                  placeholder="Venue"
+                  className="w-full p-3 bg-input rounded text-white"
+                />
 
-            <select
-              value={form.state}
-              onChange={(e) => setForm({ ...form, state: e.target.value })}
-              className="w-full p-3 bg-input rounded text-white"
-            >
-              <option value="">Select State</option>
-              <option>Karnataka</option>
-              <option>Maharashtra</option>
-              <option>Delhi</option>
-            </select>
+                <input
+                  value={form.location}
+                  onChange={(e) =>
+                    setForm({ ...form, location: e.target.value })
+                  }
+                  placeholder="City (e.g. Bengaluru)"
+                  className="w-full p-3 bg-input rounded text-white"
+                />
+
+                <select
+                  value={form.state}
+                  onChange={(e) => setForm({ ...form, state: e.target.value })}
+                  className="w-full p-3 bg-input rounded text-white"
+                >
+                  <option value="">Select State</option>
+                  {states.map((s) => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
+
+                <input
+                  value={form.mapLink}
+                  onChange={(e) => setForm({ ...form, mapLink: e.target.value })}
+                  placeholder="Google Maps Link"
+                  className="w-full p-3 bg-input rounded text-white"
+                />
+              </>
+            )}
 
             <div className="grid grid-cols-2 gap-2">
-              <input
-                type="date"
-                value={form.date}
-                onChange={(e) =>
-                  setForm({ ...form, date: e.target.value })
-                }
-                className="p-2 bg-input rounded text-white"
-              />
+              <div>
+                <Popover>
+                  <PopoverTrigger className="w-full p-2 bg-input rounded text-left text-white">{selectedDate ? new Date(selectedDate).toLocaleDateString() : 'Select date'}</PopoverTrigger>
+                  <PopoverContent>
+                    <Calendar
+                      mode="single"
+                      selected={selectedDate ? new Date(selectedDate) : undefined}
+                      onSelect={(d) => {
+                        const iso = d ? new Date(d).toISOString() : '';
+                        setSelectedDate(iso);
+                        setForm({ ...form, date: iso });
+                      }}
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
 
               <input
                 type="time"

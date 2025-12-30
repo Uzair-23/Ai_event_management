@@ -14,6 +14,7 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import { RequireAuth, RequireOrganizer } from './components/RequireAuth';
 import { ClerkProvider } from '@clerk/clerk-react';
+import { Toaster } from './components/ui/sonner';
 
 
 export default function App() {
@@ -60,6 +61,7 @@ export default function App() {
             </Routes>
           </PageTransition>
         </main>
+        <Toaster />
       </div>
     </BrowserRouter>
   );

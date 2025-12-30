@@ -6,6 +6,7 @@ import { Button } from '../components/ui/button';
 import { Separator } from '../components/ui/separator';
 import { Progress } from '../components/ui/progress';
 import { Badge } from '../components/ui/badge';
+import { toast } from 'sonner';
 
 export default function EventDetails() {
   const { id } = useParams();
@@ -124,7 +125,13 @@ export default function EventDetails() {
               <div className="text-gray-200 mb-4">{event.venue}</div>
               <div className="text-gray-300">{event.location?.city || 'Online'}{event.location?.state ? `, ${event.location.state}` : ''}</div>
               <div className="mt-4">
-                <Button variant="outline" className="!w-auto">View on Map</Button>
+                <Button variant="outline" className="!w-auto" onClick={() => {
+                  if (!event.isOnline && event.mapLink) {
+                    window.open(event.mapLink, '_blank');
+                  } else {
+                    alert('Map link not available');
+                  }
+                }}>View on Map</Button>
               </div>
             </div>
           </div>
@@ -148,8 +155,25 @@ export default function EventDetails() {
               </div>
 
               <div className="mt-6">
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <div className="text-sm text-gray-300">Seats remaining</div>
+                    <div className="text-2xl font-bold text-white">{event.totalSeats > 0 ? `${event.totalSeats - event.seatsBooked}` : 'Unlimited'}</div>
+                  </div>
+                  <Badge className="bg-white/6 text-sm text-gray-100">{event.totalSeats > 0 ? `${event.totalSeats - event.seatsBooked} left` : 'Unlimited'}</Badge>
+                </div>
+
                 <Button onClick={register} disabled={loadingRegister || event.seatsBooked >= event.totalSeats || alreadyRegistered} className="w-full bg-white text-black hover:bg-white/90">{loadingRegister ? 'Registering…' : alreadyRegistered ? 'Registered' : event.seatsBooked >= event.totalSeats ? 'Sold out' : 'Register for Event'}</Button>
-                <Button variant="outline" className="mt-3 w-full">Share Event</Button>
+                <Button variant="outline" onClick={async () => {
+                  const url = window.location.href;
+                  if (navigator.share) {
+                    try { await navigator.share({ title: event.title, url }); }
+                    catch (err) { console.error('share failed', err); }
+                  } else {
+                    try { await navigator.clipboard.writeText(url); toast.success('Link copied to clipboard'); }
+                    catch (err) { console.error('copy failed', err); toast.error('Failed to copy link'); }
+                  }
+                }} className="mt-3 w-full">Share Event</Button>
               </div>
 
               <Separator className="my-4" />
