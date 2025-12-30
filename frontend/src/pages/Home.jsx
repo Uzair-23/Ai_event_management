@@ -27,8 +27,8 @@ export default function Home() {
     fetchEvents();
   }, [stateSelection]);
 
-  const nearYou = events.slice(0, 8);
-  const recommended = events.slice(8, 16);
+  const nearYou = events.slice(0, 4);
+  const recommended = events.slice(4, 12);
 
   return (
     <>
