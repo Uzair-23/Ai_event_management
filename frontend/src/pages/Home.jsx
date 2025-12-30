@@ -1,4 +1,5 @@
 import { useEffect, useState, useContext } from "react";
+import { Link } from 'react-router-dom';
 import API from "../services/api";
 import EventCard from "../components/EventCard";
 import FeaturedCarousel from "../components/FeaturedCarousel";
@@ -25,8 +26,8 @@ export default function Home() {
     fetchEvents();
   }, [stateSelection]);
 
-  const nearYou = events.slice(0, 6);
-  const recommended = events.slice(6, 14);
+  const nearYou = events.slice(0, 8);
+  const recommended = events.slice(8, 16);
 
   return (
     <>
@@ -49,11 +50,9 @@ export default function Home() {
             </a>
           </div>
 
-          <div className="flex gap-6 overflow-x-auto pb-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {nearYou.map((e) => (
-              <div key={e._id} className="shrink-0 w-[260px]">
-                <EventCard event={e} />
-              </div>
+              <EventCard key={e._id} event={e} />
             ))}
           </div>
         </section>

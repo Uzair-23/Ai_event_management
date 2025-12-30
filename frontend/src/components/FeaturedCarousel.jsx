@@ -26,7 +26,7 @@ export default function FeaturedCarousel() {
   if (!items.length) return null;
 
   return (
-    <div className="mb-8">
+    <div className="mt-6 mb-8 md:mt-8">
       <Carousel className="w-full rounded-xl overflow-hidden">
         <CarouselContent>
           {items.map((e) => (

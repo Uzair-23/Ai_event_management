@@ -20,7 +20,7 @@ export default function EventCard({ event }) {
 
           {/* Category badge (top-left) */}
           <div className="absolute top-3 left-3 z-20">
-            <Badge className="bg-black/60 text-xs px-2 py-1">{event.category}</Badge>
+            <Badge className="bg-black/90 text-white text-sm px-3 py-1 rounded-full shadow-sm">{event.category}</Badge>
           </div>
 
           {/* Free / Paid badge (top-right) */}
