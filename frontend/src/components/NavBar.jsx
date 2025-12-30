@@ -6,6 +6,7 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '.
 import { Button } from './ui/button';
 import { State, City } from 'country-state-city';
 import { FilterContext } from '../context/FilterContext';
+import { motion } from 'framer-motion';
 
 export default function NavBar() {
   const [q, setQ] = useState('');
@@ -17,6 +18,7 @@ export default function NavBar() {
   const navigate = useNavigate();
   const location = useLocation();
   const [scrolled, setScrolled] = useState(false);
+  const MotionLink = motion(Link);
 
   // flag to avoid navigation loops when syncing state from URL
   const isSyncingRef = useRef(false);
@@ -164,64 +166,95 @@ export default function NavBar() {
   };
 
   return (
-    <nav className={`sticky top-0 z-50 p-3 flex items-center justify-between glass glass-border transition-shadow ${scrolled ? 'shadow-lg' : 'shadow-sm'}`}>
-      <Link to="/" onClick={handleLogoClick} className="text-xl font-semibold tracking-tight flex items-center gap-2">
-        <span className="text-white">AI Events</span>
-      </Link>
+    <motion.nav
+      initial={false}
+      animate={scrolled ? { y: -6 } : { y: 0 }}
+      transition={{ type: 'spring', stiffness: 300, damping: 28 }}
+      className={`fixed inset-x-0 ${scrolled ? 'top-4' : 'top-0'} z-50 pointer-events-auto`}
+    >
+      <motion.div
+        initial={false}
+        animate={scrolled ? { padding: '6px 1rem' } : { padding: '12px 1rem' }}
+        transition={{ duration: 0.18 }}
+        className={`mx-auto ${scrolled ? 'max-w-6xl rounded-full' : 'w-full'} glass glass-border border-b border-primary/20 transition-all`}
+      >
+        <div className="flex items-center justify-between gap-4">
+          <Link to="/" onClick={handleLogoClick} className="text-xl font-extrabold tracking-tight flex items-center gap-2 relative">
+            <span className="bg-clip-text text-transparent bg-gradient-to-r from-neon-violet to-neon-cyan">AI Events</span>
+          </Link>
 
-      <form onSubmit={onSubmit} className="flex flex-1 max-w-3xl mx-6 items-center gap-3">
-        <Input placeholder="Search events..." value={q} onChange={(e) => setQ(e.target.value)} className="flex-1 focus:ring-2 focus:ring-brand-600/40 transition-shadow" />
+          <form onSubmit={onSubmit} className="flex flex-1 max-w-3xl mx-6 items-center gap-3">
+            <Input placeholder="Search events..." value={q} onChange={(e) => setQ(e.target.value)} className="flex-1 focus:ring-2 focus:ring-neon-violet/40 transition-shadow" />
 
-        {/* State selector (shadcn Select) */}
-        <Select
-          value={stateSelection}
-          onValueChange={(val) => setStateSelection(val)}
-          className="w-40"
-        >
-          <SelectTrigger>
-            <SelectValue placeholder="All States" />
-          </SelectTrigger>
-          <SelectContent>
-            {states.map((s) => (
-              <SelectItem key={s.name} value={s.name}>{s.name}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+            {/* State selector (shadcn Select) */}
+            <Select
+              value={stateSelection}
+              onValueChange={(val) => setStateSelection(val)}
+              className="w-40"
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="All States" />
+              </SelectTrigger>
+              <SelectContent>
+                {states.map((s) => (
+                  <SelectItem key={s.name} value={s.name}>{s.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
-        {/* City selector (shadcn Select) */}
-        <Select
-          value={city}
-          onValueChange={(val) => setCity(val)}
-          className="w-40"
-          disabled={!stateSelection || stateSelection === 'All'}
-        >
-          <SelectTrigger>
-            <SelectValue placeholder="All Cities" />
-          </SelectTrigger>
-          <SelectContent>
-            {cities.map((c) => (
-              <SelectItem key={c} value={c}>{c}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </form>
+            {/* City selector (shadcn Select) */}
+            <Select
+              value={city}
+              onValueChange={(val) => setCity(val)}
+              className="w-40"
+              disabled={!stateSelection || stateSelection === 'All'}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="All Cities" />
+              </SelectTrigger>
+              <SelectContent>
+                {cities.map((c) => (
+                  <SelectItem key={c} value={c}>{c}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </form>
 
-      <div className="space-x-4 flex items-center">
-        <Link to="/explore" className="px-3 py-1 rounded hover:underline text-sm transition">Explore</Link>
-        <Link to="/create" className="px-3 py-1 rounded-full bg-gradient-to-r from-brand-600 to-brand-500 text-white shadow-glow-md hover:from-brand-500 hover:to-brand-600 transition">Create</Link>
-        <Link to="/tickets" className="px-3 py-1 rounded hover:underline text-sm transition">My Tickets</Link>
+          <div className="space-x-4 flex items-center">
+            <MotionLink whileHover={{ scale: 1.05 }} to="/explore" className="px-3 py-1 rounded text-sm transition group inline-flex flex-col items-center">
+              <span>Explore</span>
+              <span className="block mt-1 h-1 w-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity" style={{ backgroundColor: 'var(--primary)' }} />
+            </MotionLink>
 
-        <SignedOut>
-          <Link to="/login" className="px-3 py-1 rounded hover:underline text-sm transition">Login</Link>
-          <Link to="/register" className="px-3 py-1 rounded hover:underline text-sm transition">Register</Link>
-        </SignedOut>
+            <MotionLink whileHover={{ scale: 1.05 }} to="/create" className="px-3 py-1 rounded-full bg-gradient-to-r from-brand-600 to-brand-500 text-white shadow-glow-md hover:from-brand-500 hover:to-brand-600 transition inline-flex items-center justify-center group">
+              <span>Create</span>
+              <span className="block mt-1 h-1 w-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity" style={{ backgroundColor: 'var(--primary)' }} />
+            </MotionLink>
 
-        <SignedIn>
-          <div className="ml-3">
-            <UserButton />
+            <MotionLink whileHover={{ scale: 1.05 }} to="/tickets" className="px-3 py-1 rounded text-sm transition group inline-flex flex-col items-center">
+              <span>My Tickets</span>
+              <span className="block mt-1 h-1 w-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity" style={{ backgroundColor: 'var(--primary)' }} />
+            </MotionLink>
+
+            <SignedOut>
+              <MotionLink whileHover={{ scale: 1.05 }} to="/login" className="px-3 py-1 rounded text-sm transition group inline-flex flex-col items-center">
+                <span>Login</span>
+                <span className="block mt-1 h-1 w-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity" style={{ backgroundColor: 'var(--primary)' }} />
+              </MotionLink>
+              <MotionLink whileHover={{ scale: 1.05 }} to="/register" className="px-3 py-1 rounded text-sm transition group inline-flex flex-col items-center">
+                <span>Register</span>
+                <span className="block mt-1 h-1 w-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity" style={{ backgroundColor: 'var(--primary)' }} />
+              </MotionLink>
+            </SignedOut>
+
+            <SignedIn>
+              <div className="ml-3">
+                <UserButton />
+              </div>
+            </SignedIn>
           </div>
-        </SignedIn>
-      </div>
-    </nav>
+        </div>
+      </motion.div>
+    </motion.nav>
   );
 }
