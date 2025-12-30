@@ -16,6 +16,15 @@ module.exports = {
       },
       boxShadow: {
         'glow-md': '0 8px 24px rgba(124,58,237,0.14), 0 2px 6px rgba(2,6,23,0.45)'
+      },
+      keyframes: {
+        shimmer: {
+          '0%': { 'background-position': '0% 50%' },
+          '100%': { 'background-position': '200% 50%' }
+        }
+      },
+      animation: {
+        shimmer: 'shimmer 2.4s linear infinite'
       }
     },
   },
