@@ -45,7 +45,7 @@ export default function Home() {
   const recommended = popular;
 
   return (
-    <>
+    <main className="pt-28 md:pt-24">
       {/* Hero Carousel */}
       <FeaturedCarousel />
 
@@ -108,6 +108,6 @@ export default function Home() {
           </div>
         </section>
       </div>
-    </>
+    </main>
   );
 }
