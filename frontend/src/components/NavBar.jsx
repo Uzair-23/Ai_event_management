@@ -4,13 +4,15 @@ import { SignedIn, SignedOut, UserButton } from '@clerk/clerk-react';
 import { Input } from './ui/input';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from './ui/select';
 import { Button } from './ui/button';
-import API from '../services/api';
+import { State, City } from 'country-state-city';
 import { FilterContext } from '../context/FilterContext';
 
 export default function NavBar() {
   const [q, setQ] = useState('');
   const [city, setCity] = useState('All');
   const [cities, setCities] = useState(['All']);
+  const [states, setStates] = useState([]);
+  const [selectedStateCode, setSelectedStateCode] = useState(null);
   const { stateSelection, setStateSelection } = useContext(FilterContext);
   const navigate = useNavigate();
   const [scrolled, setScrolled] = useState(false);
@@ -22,17 +24,48 @@ export default function NavBar() {
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
+  // load India states and initialize cities based on current stateSelection
   useEffect(() => {
-    const fetchCities = async () => {
-      try {
-        const { data } = await API.get('/events/cities');
-        setCities(['All', ...data.cities]);
-      } catch (err) {
-        console.error('cities', err);
+    const sts = State.getStatesOfCountry('IN') || [];
+    const list = [{ name: 'All', isoCode: null }, ...sts.map(s => ({ name: s.name, isoCode: s.isoCode }))];
+    setStates(list);
+
+    // if a state is already selected in context, populate cities for it
+    if (stateSelection && stateSelection !== 'All') {
+      const s = list.find(x => x.name === stateSelection);
+      if (s && s.isoCode) {
+        setSelectedStateCode(s.isoCode);
+        const cityList = City.getCitiesOfState('IN', s.isoCode) || [];
+        setCities(['All', ...cityList.map(c => c.name)]);
+      } else {
+        setCities(['All']);
       }
-    };
-    fetchCities();
+    } else {
+      setCities(['All']);
+    }
   }, []);
+
+  // when the selected state (from context) changes, update cities and reset city selection
+  useEffect(() => {
+    if (!stateSelection || stateSelection === 'All') {
+      setCities(['All']);
+      setSelectedStateCode(null);
+      setCity('All');
+      return;
+    }
+
+    const s = states.find(x => x.name === stateSelection);
+    const iso = s?.isoCode;
+    setSelectedStateCode(iso || null);
+    setCity('All');
+
+    if (iso) {
+      const cityList = City.getCitiesOfState('IN', iso) || [];
+      setCities(['All', ...cityList.map(c => c.name)]);
+    } else {
+      setCities(['All']);
+    }
+  }, [stateSelection, states]);
 
   // debounce navigation (only when user has interacted)
   useEffect(() => {
@@ -79,10 +112,9 @@ export default function NavBar() {
             <SelectValue placeholder="All States" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="All">All States</SelectItem>
-            <SelectItem value="Karnataka">Karnataka</SelectItem>
-            <SelectItem value="Maharashtra">Maharashtra</SelectItem>
-            <SelectItem value="Delhi">Delhi</SelectItem>
+            {states.map((s) => (
+              <SelectItem key={s.name} value={s.name}>{s.name}</SelectItem>
+            ))}
           </SelectContent>
         </Select>
 
@@ -91,12 +123,12 @@ export default function NavBar() {
           value={city}
           onValueChange={(val) => setCity(val)}
           className="w-40"
+          disabled={!stateSelection || stateSelection === 'All'}
         >
           <SelectTrigger>
             <SelectValue placeholder="All Cities" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="All">All Cities</SelectItem>
             {cities.map((c) => (
               <SelectItem key={c} value={c}>{c}</SelectItem>
             ))}

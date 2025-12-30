@@ -116,6 +116,17 @@ exports.featuredEvents = async (req, res) => {
   }
 };
 
+// Popular events - top 3 by registrations
+exports.getPopularEvents = async (req, res) => {
+  try {
+    const events = await Event.find().sort({ seatsBooked: -1 }).limit(3);
+    res.json({ events });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
 // Search endpoint
 exports.searchEvents = async (req, res) => {
   try {

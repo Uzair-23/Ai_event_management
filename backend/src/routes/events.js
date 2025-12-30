@@ -7,6 +7,7 @@ router.get('/', eventsController.listEvents);
 router.get('/search', eventsController.searchEvents);
 router.get('/featured', eventsController.featuredEvents);
 router.get('/cities', eventsController.getCities);
+router.get('/popular', eventsController.getPopularEvents);
 router.get('/:id', eventsController.getEvent);
 
 // register for event (accepts Clerk userId in body)

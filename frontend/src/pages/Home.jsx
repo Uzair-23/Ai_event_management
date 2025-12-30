@@ -27,8 +27,22 @@ export default function Home() {
     fetchEvents();
   }, [stateSelection]);
 
+  const [popular, setPopular] = useState([]);
+
+  useEffect(() => {
+    const fetchPopular = async () => {
+      try {
+        const { data } = await API.get('/events/popular');
+        setPopular(data.events || []);
+      } catch (err) {
+        console.error('home popular events', err);
+      }
+    };
+    fetchPopular();
+  }, []);
+
   const nearYou = events.slice(0, 4);
-  const recommended = events.slice(4, 12);
+  const recommended = popular;
 
   return (
     <>
@@ -52,6 +66,35 @@ export default function Home() {
           ))}
         </div>
       </SectionReveal>
+
+      {/* Browse by Category */}
+      <SectionReveal className="mb-12">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-2xl font-bold">Browse by Category</h2>
+          <Link to="/explore" className="text-sm text-primary">View All →</Link>
+        </div>
+
+        <div className="flex gap-3 overflow-x-auto pb-2 -mx-1">
+          {[
+            { key: 'Tech', emoji: '💻' },
+            { key: 'Music', emoji: '🎵' },
+            { key: 'Workshops', emoji: '🛠️' },
+            { key: 'Health', emoji: '🧘' },
+            { key: 'Sports', emoji: '🏅' },
+            { key: 'Business', emoji: '💼' },
+          ].map((c) => (
+            <Link
+              key={c.key}
+              to={`/explore?category=${encodeURIComponent(c.key)}`}
+              className="inline-flex items-center gap-3 px-4 py-3 bg-surface/60 hover:bg-surface/80 rounded-lg shadow-sm min-w-[140px] flex-shrink-0"
+            >
+              <span className="text-2xl">{c.emoji}</span>
+              <span className="font-medium">{c.key}</span>
+            </Link>
+          ))}
+        </div>
+      </SectionReveal>
+
         {/* Recommended */}
         <section>
           <div className="flex justify-between items-center mb-4">
