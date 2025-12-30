@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { useEffect } from 'react';
 import { useAuth } from '@clerk/clerk-react';
 import NavBar from './components/NavBar';
+import PageTransition from './components/PageTransition';
 
 import Home from './pages/Home';
 import Explore from './pages/Explore';
@@ -30,31 +31,35 @@ export default function App() {
       <div className="min-h-screen bg-background text-foreground">
         <NavBar />
         <RouteLogger />
-        <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/explore" element={<Explore />} />
-          <Route path="/events/:id" element={<EventDetails />} />
+        <main>
+          <PageTransition>
+            <Routes>
+              <Route path="/" element={<Home />} />
+              <Route path="/explore" element={<Explore />} />
+              <Route path="/events/:id" element={<EventDetails />} />
 
-          {/* Protected: signed-in users */}
-          <Route
-            path="/create"
-            element={<RequireAuth><CreateEvent /></RequireAuth>}
-          />
-          <Route
-            path="/tickets"
-            element={<RequireAuth><MyTickets /></RequireAuth>}
-          />
+              {/* Protected: signed-in users */}
+              <Route
+                path="/create"
+                element={<RequireAuth><CreateEvent /></RequireAuth>}
+              />
+              <Route
+                path="/tickets"
+                element={<RequireAuth><MyTickets /></RequireAuth>}
+              />
 
-          {/* Organizer-only */}
-          <Route
-            path="/dashboard"
-            element={<RequireAuth><RequireOrganizer><OrganizerDashboard /></RequireOrganizer></RequireAuth>}
-          />
+              {/* Organizer-only */}
+              <Route
+                path="/dashboard"
+                element={<RequireAuth><RequireOrganizer><OrganizerDashboard /></RequireOrganizer></RequireAuth>}
+              />
 
-          {/* Auth pages */}
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
-        </Routes>
+              {/* Auth pages */}
+              <Route path="/login" element={<Login />} />
+              <Route path="/register" element={<Register />} />
+            </Routes>
+          </PageTransition>
+        </main>
       </div>
     </BrowserRouter>
   );

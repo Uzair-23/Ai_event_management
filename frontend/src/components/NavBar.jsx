@@ -13,6 +13,14 @@ export default function NavBar() {
   const [cities, setCities] = useState(['All']);
   const { stateSelection, setStateSelection } = useContext(FilterContext);
   const navigate = useNavigate();
+  const [scrolled, setScrolled] = useState(false);
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 8);
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
 
   useEffect(() => {
     const fetchCities = async () => {
@@ -53,13 +61,13 @@ export default function NavBar() {
   };
 
   return (
-    <nav className="p-4 flex items-center justify-between bg-card/60 backdrop-blur-sm">
-      <Link to="/" className="text-xl font-semibold">
-        AI Events
+    <nav className={`sticky top-0 z-50 p-3 flex items-center justify-between glass glass-border transition-shadow ${scrolled ? 'shadow-lg' : 'shadow-sm'}`}>
+      <Link to="/" className="text-xl font-semibold tracking-tight flex items-center gap-2">
+        <span className="text-white">AI Events</span>
       </Link>
 
       <form onSubmit={onSubmit} className="flex flex-1 max-w-3xl mx-6 items-center gap-3">
-        <Input placeholder="Search events..." value={q} onChange={(e) => setQ(e.target.value)} className="flex-1" />
+        <Input placeholder="Search events..." value={q} onChange={(e) => setQ(e.target.value)} className="flex-1 focus:ring-2 focus:ring-brand-600/40 transition-shadow" />
 
         {/* State selector (shadcn Select) */}
         <Select
@@ -97,15 +105,13 @@ export default function NavBar() {
       </form>
 
       <div className="space-x-4 flex items-center">
-        <Link to="/explore" className="px-3 py-1 rounded hover:bg-primary/10 transition">
-          Explore
-        </Link>
-        <Link to="/create" className="px-3 py-1 rounded bg-primary text-primary-foreground">Create</Link>
-        <Link to="/tickets" className="px-3 py-1 rounded hover:bg-primary/10 transition">My Tickets</Link>
+        <Link to="/explore" className="px-3 py-1 rounded hover:underline text-sm transition">Explore</Link>
+        <Link to="/create" className="px-3 py-1 rounded-full bg-gradient-to-r from-brand-600 to-brand-500 text-white shadow-glow-md hover:from-brand-500 hover:to-brand-600 transition">Create</Link>
+        <Link to="/tickets" className="px-3 py-1 rounded hover:underline text-sm transition">My Tickets</Link>
 
         <SignedOut>
-          <Link to="/login" className="px-3 py-1 rounded hover:bg-primary/10 transition">Login</Link>
-          <Link to="/register" className="px-3 py-1 rounded hover:bg-primary/10 transition">Register</Link>
+          <Link to="/login" className="px-3 py-1 rounded hover:underline text-sm transition">Login</Link>
+          <Link to="/register" className="px-3 py-1 rounded hover:underline text-sm transition">Register</Link>
         </SignedOut>
 
         <SignedIn>

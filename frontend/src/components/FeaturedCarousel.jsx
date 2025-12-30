@@ -27,25 +27,25 @@ export default function FeaturedCarousel() {
 
   return (
     <div className="mt-6 mb-8 md:mt-8">
-      <Carousel className="w-full rounded-xl overflow-hidden">
+      <Carousel className="w-full rounded-xl overflow-hidden h-[40vh] md:h-[45vh] lg:h-[40vh]">
         <CarouselContent>
           {items.map((e) => (
-            <CarouselItem key={e._id} className="w-full h-[35vh] md:h-[44vh] cursor-pointer" onClick={() => navigate(`/events/${e._id}`)}>
+            <CarouselItem key={e._id} className="w-full h-[40vh] md:h-[45vh] lg:h-[40vh] cursor-pointer" onClick={() => navigate(`/events/${e._id}`)}>
               <div role="button" tabIndex={0} className="relative w-full h-full bg-cover bg-center" style={{ backgroundImage: `url(${e.coverImage || `https://source.unsplash.com/featured/?${encodeURIComponent(e.title || e.category)}`})` }}>
-                {/* bottom-heavy gradient overlay (black/80 -> black/40 -> transparent) */}
-                <div className="absolute inset-0 z-10 bg-gradient-to-t from-black/80 via-black/40 to-transparent" />
+                {/* bottom-heavy gradient overlay (black/70 -> transparent) */}
+                <div className="absolute inset-0 z-10 bg-gradient-to-t from-black/70 via-transparent rounded-xl" />
 
                 {/* top-left category pill */}
                 <div className="absolute top-5 left-6 z-20">
-                  <span className="inline-block bg-black/60 text-xs text-white px-3 py-1 rounded-full">{e.category}</span>
+                  <span className="inline-block bg-black/60 text-sm md:text-xs text-white px-3 py-1 rounded-full">{e.category}</span>
                 </div>
 
                 {/* bottom-left overlay content */}
-                <div className="absolute bottom-6 left-6 z-20 text-white max-w-3xl pr-6">
-                  <h2 className="text-3xl md:text-5xl font-bold leading-tight">{e.title}</h2>
-                  <p className="mt-2 text-base md:text-lg text-gray-200 max-w-2xl line-clamp-2">{e.description || ''}</p>
+                <div className="absolute bottom-8 left-8 z-20 text-white max-w-3xl pr-6">
+                  <h2 className="text-4xl md:text-5xl lg:text-6xl font-extrabold leading-tight drop-shadow-lg">{e.title}</h2>
+                  <p className="mt-3 text-sm md:text-base lg:text-lg text-white/90 max-w-2xl line-clamp-3">{e.description || ''}</p>
 
-                  <div className="mt-4 flex items-center gap-4 text-sm text-gray-300">
+                  <div className="mt-6 flex items-center gap-4 text-sm text-gray-300">
                     <div className="flex items-center gap-2">
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3M16 7V3M3 11h18M5 21h14a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2z"/></svg>
                       <span>{new Date(e.date).toLocaleDateString()}</span>
