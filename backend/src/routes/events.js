@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { authMiddleware, requireRole } = require('../middlewares/auth');
+const { authMiddleware, requireRole, isEventOwner } = require('../middlewares/auth');
 const eventsController = require('../controllers/eventsController');
 
 router.get('/', eventsController.listEvents);
@@ -16,7 +16,7 @@ router.post('/:id/register', ticketsController.registerForEvent);
 
 // Public create for now (frontend will send Clerk organizerId)
 router.post('/', eventsController.createEvent);
-router.put('/:id', authMiddleware, requireRole('ORGANIZER'), eventsController.updateEvent);
-router.delete('/:id', authMiddleware, requireRole('ORGANIZER'), eventsController.deleteEvent);
+router.put('/:id', authMiddleware, requireRole('ORGANIZER'), isEventOwner, eventsController.updateEvent);
+router.delete('/:id', authMiddleware, requireRole('ORGANIZER'), isEventOwner, eventsController.deleteEvent);
 
 module.exports = router;

@@ -71,6 +71,9 @@ export default function EventDetails() {
   const cover = event.coverImage || `https://source.unsplash.com/featured/?${encodeURIComponent(event.title || event.category || 'event')}`;
   const seatsPercent = event.totalSeats > 0 ? Math.round((event.seatsBooked / event.totalSeats) * 100) : 0;
 
+  // determine if the current user is the organizer/owner of this event
+  const isOrganizerOwner = !!(user && user.id && (user.id === (event.organizer || event.organizerId)) && user.publicMetadata?.role === 'ORGANIZER');
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-purple-950 via-purple-900 to-purple-800 py-10">
       <div className="max-w-6xl mx-auto px-6">
@@ -174,6 +177,11 @@ export default function EventDetails() {
                     catch (err) { console.error('copy failed', err); toast.error('Failed to copy link'); }
                   }
                 }} className="mt-3 w-full">Share Event</Button>
+
+                {isOrganizerOwner && (
+                  <Button variant="secondary" onClick={() => navigate(`/events/edit/${id}`)} className="mt-3 w-full">Edit Event</Button>
+                )}
+
               </div>
 
               <Separator className="my-4" />
