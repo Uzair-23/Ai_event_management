@@ -71,8 +71,33 @@ export default function EventDetails() {
   const cover = event.coverImage || `https://source.unsplash.com/featured/?${encodeURIComponent(event.title || event.category || 'event')}`;
   const seatsPercent = event.totalSeats > 0 ? Math.round((event.seatsBooked / event.totalSeats) * 100) : 0;
 
-  // determine if the current user is the organizer/owner of this event
-  const isOrganizerOwner = !!(user && user.id && (user.id === (event.organizer || event.organizerId)) && user.publicMetadata?.role === 'ORGANIZER');
+  // determine if the current user is the organizer/owner of this event (robust String comparison)
+  const isOrganizerOwner = isSignedIn && user?.id && String(user.id) === String(event.organizer) && user?.publicMetadata?.role === 'ORGANIZER';
+
+  // debug logs to help troubleshoot ID/role mismatches
+  useEffect(() => {
+    if (!event) return;
+    console.log('[DEBUG] currentUserId:', user?.id);
+    console.log('[DEBUG] event.organizer:', event?.organizer);
+    console.log('[DEBUG] user.publicMetadata.role:', user?.publicMetadata?.role);
+  }, [user, event]);
+
+  const refreshSession = async () => {
+    try {
+      if (!window?.Clerk?.session?.getToken) {
+        toast.error('Clerk not available in this environment');
+        return;
+      }
+      await window.Clerk.session.getToken({ forceRefresh: true });
+      toast.success('Session refreshed — reloading the page');
+      setTimeout(() => window.location.reload(), 500);
+    } catch (err) {
+      console.error('refresh session failed', err);
+      toast.error('Failed to refresh session; please log out and sign in again');
+    }
+  };
+
+  const shouldShowRefreshPrompt = isSignedIn && !user?.publicMetadata?.role;
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-purple-950 via-purple-900 to-purple-800 py-10">
@@ -141,6 +166,13 @@ export default function EventDetails() {
 
           {/* Right column - sticky */}
           <div className="lg:col-span-1">
+            {shouldShowRefreshPrompt && (
+              <div className="mb-4 p-3 rounded-md bg-yellow-900/40 text-yellow-200 flex items-center justify-between">
+                <div className="text-sm">Your session role is missing. Try refreshing your session or log out and back in to refresh your Clerk session token.</div>
+                <Button variant="ghost" onClick={refreshSession} className="ml-3">Refresh Session</Button>
+              </div>
+            )}
+
             <div className="bg-purple-800/70 p-6 rounded-2xl sticky top-24 shadow-lg border border-white/6">
               <div className="flex items-center justify-between">
                 <div className="text-lg font-semibold text-white">{event.price > 0 ? `₹${event.price}` : 'Free'}</div>

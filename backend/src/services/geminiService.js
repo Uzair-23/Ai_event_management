@@ -35,15 +35,24 @@ Output JSON structure:
   try {
     const model = genAI.getGenerativeModel({
       model: "gemini-1.5-flash",
+      generationConfig: { responseMimeType: 'application/json' },
     });
 
-    const result = await model.generateContent(prompt);
-    const text = result.response.text();
+    // Request JSON response from Gemini for more reliable parsing
+    const result = await model.generateContent({
+      prompt,
+      generationConfig: { responseMimeType: 'application/json' },
+    });
 
-    // Extract JSON safely
+    const text = result.response?.text ? result.response.text() : (result?.output?.[0]?.content || '');
+
+    // If the model returned structured JSON directly, prefer that
     const jsonMatch = text.match(/\{[\s\S]*\}/);
 
     if (!jsonMatch) {
+      // fallback: if the API returned parsed JSON in a field, attempt to return it
+      if (result.response?.content && typeof result.response.content === 'object') return result.response.content;
+      if (result.output && result.output[0] && result.output[0].content) return result.output[0].content;
       return { raw: text };
     }
 

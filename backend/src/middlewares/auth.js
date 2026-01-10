@@ -23,8 +23,8 @@ const authMiddleware = async (req, res, next) => {
 
     // Build a req.user object that works for both local users and Clerk tokens
     // Clerk tokens typically have `sub` as user id and `public_metadata` or `publicMetadata` for role
-    const clerkId = decoded.sub || decoded.userId || decoded.id || decoded['user_id'];
-    const publicMetadata = decoded.public_metadata || decoded.publicMetadata || decoded.metadata || {};
+    const clerkId = decoded.sub || decoded.userId || decoded.id || decoded['user_id'] || decoded.payload?.sub || decoded.payload?.userId || decoded.claims?.sub || (decoded.claims && decoded.claims.sub);
+    const publicMetadata = decoded.public_metadata || decoded.publicMetadata || decoded.metadata || decoded.payload?.public_metadata || decoded.claims?.public_metadata || {};
 
     // If we have a local user id, try fetching the User record to preserve internal fields (like password excluded)
     if (decoded.id) {
