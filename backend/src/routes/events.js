@@ -18,6 +18,6 @@ router.post('/:id/register', ticketsController.registerForEvent);
 router.post('/', eventsController.createEvent);
 router.put('/:id', authMiddleware, requireRole('ORGANIZER'), isEventOwner, eventsController.updateEvent);
 router.delete('/:id', authMiddleware, requireRole('ORGANIZER'), isEventOwner, eventsController.deleteEvent);
-router.get('/organizer/:organizerId', eventsController.getEventsByOrganizer);
+router.get('/organizer/:organizerId', authMiddleware, eventsController.getEventsByOrganizer);
 
 module.exports = router;

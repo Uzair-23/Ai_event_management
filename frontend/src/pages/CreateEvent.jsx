@@ -38,26 +38,38 @@ export default function CreateEvent() {
 
   // Generate AI-assisted event content
   const handleAI = async () => {
-    if (!form.title || !form.idea || !form.category) {
-      alert("Please fill title, idea and category first");
-      return;
-    }
+  if (!form.title || !form.category) {
+    alert("Please enter a title and category first!");
+    return;
+  }
 
-    try {
-      setLoadingAI(true);
-      const { data } = await API.post("/ai/generate", {
-        title: form.title,
-        idea: form.idea,
-        category: form.category,
-        audience: "general",
-      });
-      setAiOutput(data);
-    } catch (err) {
-    console.error(err);
-    if (err.response && err.response.data) {
-      console.log(err.response.data);
-    }
-    alert("AI generation failed");
+  setIsGenerating(true); // Start the loading state
+  
+  try {
+    const { data } = await API.post('/ai/generate', {
+      title: form.title,
+      idea: form.description,
+      category: form.category,
+      audience: "General"
+    });
+
+    // Update the form with AI data
+    setForm(prev => ({
+      ...prev,
+      description: data.description || prev.description,
+      // Add other fields as per your AI response structure
+    }));
+
+  } catch (err) {
+    console.error("AI Generation Error:", err.response?.data || err.message);
+    
+    // Better error messaging
+    const errMsg = err.response?.data?.message || "AI generation failed.";
+    alert(`${errMsg} \n\nTip: If you just changed your role to Organizer, please Log Out and Log In again.`);
+    
+  } finally {
+    // THIS IS THE FIX: This runs whether the AI succeeds OR fails
+    setIsGenerating(false); 
   }
 };
 
