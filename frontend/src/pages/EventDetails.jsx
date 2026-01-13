@@ -72,7 +72,11 @@ export default function EventDetails() {
   const seatsPercent = event.totalSeats > 0 ? Math.round((event.seatsBooked / event.totalSeats) * 100) : 0;
 
   // determine if the current user is the organizer/owner of this event (robust String comparison)
-  const isOrganizerOwner = isSignedIn && user?.id && String(user.id) === String(event.organizer) && user?.publicMetadata?.role === 'ORGANIZER';
+  const isOrganizerOwner = 
+  isSignedIn && 
+  user?.id && 
+  event?.organizer && 
+  String(user.id) === String(event.organizer);
 
   // debug logs to help troubleshoot ID/role mismatches
   useEffect(() => {

@@ -54,10 +54,17 @@ const authMiddleware = async (req, res, next) => {
 
 const requireRole = (role) => (req, res, next) => {
   if (!req.user) return res.status(401).json({ message: 'Unauthorized' });
-  // Role may come from a local user record or from Clerk's publicMetadata
-  const userRole = req.user.role || req.user.publicMetadata?.role || req.user.public_metadata?.role;
-  if (userRole !== role)
+  
+  // Check all possible locations for the role in a Clerk/JWT token
+  const userRole = 
+    req.user.role || 
+    req.user.publicMetadata?.role || 
+    req.user.public_metadata?.role;
+
+  if (userRole !== role) {
+    console.log(`[AUTH] Role mismatch. Expected: ${role}, Found: ${userRole}`);
     return res.status(403).json({ message: 'Forbidden - insufficient role' });
+  }
   next();
 };
 
