@@ -46,185 +46,117 @@ export default function EventDetails() {
 
   const register = async () => {
     if (!isSignedIn || !user) {
-      console.log('[NAV DEBUG] EventDetails register -> redirect to /login (not signed in)');
       return navigate('/login');
     }
-    if (event.seatsBooked >= event.totalSeats) return alert('Event is full');
-    if (alreadyRegistered) return alert('You are already registered');
+    if (event.seatsBooked >= event.totalSeats) return toast.error('Event is full');
+    if (alreadyRegistered) return toast.info('You are already registered');
 
     setLoadingRegister(true);
     try {
-      const { data } = await API.post(`/events/${id}/register`, { userId: user.id });
-      // success - navigate to My Tickets to show the ticket
-      console.log('[NAV DEBUG] EventDetails registration success, navigating to /tickets');
+      await API.post(`/events/${id}/register`, { userId: user.id });
+      toast.success('Registration successful! Redirecting to tickets...');
       navigate('/tickets');
     } catch (err) {
       console.error(err);
-      alert(err.response?.data?.message || 'Registration failed');
+      toast.error(err.response?.data?.message || 'Registration failed');
     } finally {
       setLoadingRegister(false);
     }
   };
 
-  if (!event) return <div className="p-6">Loading…</div>;
+  if (!event) return <div className="p-10 text-center">Loading event details...</div>;
 
   const cover = event.coverImage || `https://source.unsplash.com/featured/?${encodeURIComponent(event.title || event.category || 'event')}`;
   const seatsPercent = event.totalSeats > 0 ? Math.round((event.seatsBooked / event.totalSeats) * 100) : 0;
 
-  // determine if the current user is the organizer/owner of this event (robust String comparison)
+  // Robust check: matches string IDs regardless of object type
   const isOrganizerOwner = 
-  isSignedIn && 
-  user?.id && 
-  event?.organizer && 
-  String(user.id) === String(event.organizer);
-
-  // debug logs to help troubleshoot ID/role mismatches
-  useEffect(() => {
-    if (!event) return;
-    console.log('[DEBUG] currentUserId:', user?.id);
-    console.log('[DEBUG] event.organizer:', event?.organizer);
-    console.log('[DEBUG] user.publicMetadata.role:', user?.publicMetadata?.role);
-  }, [user, event]);
-
-  const refreshSession = async () => {
-    try {
-      if (!window?.Clerk?.session?.getToken) {
-        toast.error('Clerk not available in this environment');
-        return;
-      }
-      await window.Clerk.session.getToken({ forceRefresh: true });
-      toast.success('Session refreshed — reloading the page');
-      setTimeout(() => window.location.reload(), 500);
-    } catch (err) {
-      console.error('refresh session failed', err);
-      toast.error('Failed to refresh session; please log out and sign in again');
-    }
-  };
-
-  const shouldShowRefreshPrompt = isSignedIn && !user?.publicMetadata?.role;
+    isSignedIn && 
+    user?.id && 
+    event?.organizer && 
+    String(user.id) === String(event.organizer);
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-purple-950 via-purple-900 to-purple-800 py-10">
       <div className="max-w-6xl mx-auto px-6">
         {/* Top banner */}
-        <div className="rounded-2xl overflow-hidden mb-8 relative shadow-lg">
-          <div className="w-full h-[36vh] md:h-[48vh] bg-cover bg-center" style={{ backgroundImage: `url(${cover})` }} />
-          <div className="absolute inset-0 bg-gradient-to-t from-purple-900/80 via-black/40 to-transparent z-10" />
+        <div className="rounded-2xl overflow-hidden mb-8 relative shadow-lg group">
+          <div className="w-full h-[36vh] md:h-[48vh] bg-cover bg-center transition-transform duration-700 group-hover:scale-105" style={{ backgroundImage: `url(${cover})` }} />
+          <div className="absolute inset-0 bg-gradient-to-t from-purple-900/90 via-black/40 to-transparent z-10" />
 
           <div className="absolute bottom-8 left-8 z-20 text-white max-w-3xl">
-            <h1 className="text-2xl md:text-4xl lg:text-5xl font-extrabold leading-tight">{event.title}</h1>
-            <p className="mt-3 text-sm md:text-base text-gray-200 line-clamp-2">{event.description}</p>
-
-            <div className="mt-4 flex items-center gap-4 text-sm text-gray-300">
-              <div className="flex items-center gap-2">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3M16 7V3M3 11h18M5 21h14a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2z"/></svg>
-                <span>{new Date(event.date).toLocaleDateString()}</span>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 11c1.657 0 3-1.343 3-3S13.657 5 12 5s-3 1.343-3 3 1.343 3 3 3z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 21c4.418 0 8-3.582 8-8 0-3.866-4-7-8-7s-8 3.134-8 7c0 4.418 3.582 8 8 8z"/></svg>
-                <span>{event.location?.city || 'Online'}</span>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a4 4 0 0 0-4-4h-1M9 20H4v-2a4 4 0 0 1 4-4h1m0-5a4 4 0 1 1 8 0"/></svg>
-                <span>{(event.seatsBooked || 0)} registered</span>
-              </div>
-            </div>
+            <h1 className="text-3xl md:text-5xl font-extrabold leading-tight">{event.title}</h1>
+            <p className="mt-3 text-gray-200 line-clamp-2 md:text-lg">{event.description}</p>
           </div>
         </div>
 
         {/* Main content */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Left column */}
           <div className="lg:col-span-2 space-y-6">
-            <div className="bg-purple-900/60 rounded-2xl p-6 shadow-sm backdrop-blur-sm">
-              <h2 className="text-2xl font-bold text-white">About This Event</h2>
-              <p className="mt-3 text-gray-200 leading-relaxed">{event.description}</p>
-
-              <Separator className="my-6" />
-
-              <h3 className="text-lg font-semibold text-white mb-2">Highlights</h3>
-              <ul className="list-disc pl-5 text-gray-300">
-                <li>Duration: 3 hours</li>
-                <li>Networking opportunity</li>
-                <li>Q&A session</li>
-              </ul>
+            <div className="bg-purple-900/40 glass-border rounded-2xl p-6 backdrop-blur-md">
+              <h2 className="text-2xl font-bold text-white mb-4">About This Event</h2>
+              <p className="text-gray-200 leading-relaxed whitespace-pre-line">{event.description}</p>
             </div>
 
-            <div className="bg-purple-900/60 rounded-2xl p-6 shadow-sm backdrop-blur-sm">
-              <h3 className="text-lg font-semibold text-white mb-3">Location</h3>
-              <div className="text-gray-200 mb-4">{event.venue}</div>
-              <div className="text-gray-300">{event.location?.city || 'Online'}{event.location?.state ? `, ${event.location.state}` : ''}</div>
-              <div className="mt-4">
-                <Button variant="outline" className="!w-auto" onClick={() => {
-                  if (!event.isOnline && event.mapLink) {
-                    window.open(event.mapLink, '_blank');
-                  } else {
-                    alert('Map link not available');
-                  }
-                }}>View on Map</Button>
+            <div className="bg-purple-900/40 glass-border rounded-2xl p-6 backdrop-blur-md">
+              <h3 className="text-xl font-semibold text-white mb-4">Location & Venue</h3>
+              <div className="flex items-start gap-4 text-gray-200">
+                <div className="bg-white/10 p-3 rounded-full">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                </div>
+                <div>
+                  <div className="font-semibold text-lg">{event.venue}</div>
+                  <div className="text-gray-300">{event.location?.city || 'Online'}{event.location?.state ? `, ${event.location.state}` : ''}</div>
+                  {event.mapLink && !event.isOnline && (
+                    <Button variant="link" className="px-0 text-brand-300 mt-1" onClick={() => window.open(event.mapLink, '_blank')}>View on Google Maps &rarr;</Button>
+                  )}
+                </div>
               </div>
             </div>
           </div>
 
           {/* Right column - sticky */}
           <div className="lg:col-span-1">
-            {shouldShowRefreshPrompt && (
-              <div className="mb-4 p-3 rounded-md bg-yellow-900/40 text-yellow-200 flex items-center justify-between">
-                <div className="text-sm">Your session role is missing. Try refreshing your session or log out and back in to refresh your Clerk session token.</div>
-                <Button variant="ghost" onClick={refreshSession} className="ml-3">Refresh Session</Button>
-              </div>
-            )}
-
-            <div className="bg-purple-800/70 p-6 rounded-2xl sticky top-24 shadow-lg border border-white/6">
-              <div className="flex items-center justify-between">
-                <div className="text-lg font-semibold text-white">{event.price > 0 ? `₹${event.price}` : 'Free'}</div>
-                <Badge className="bg-white/6 text-sm text-gray-100">{event.totalSeats > 0 ? `${event.totalSeats - event.seatsBooked} seats left` : 'Unlimited'}</Badge>
+            <div className="bg-purple-950/80 glass-border p-6 rounded-2xl sticky top-24 shadow-2xl">
+              <div className="flex items-center justify-between mb-6">
+                <div className="text-2xl font-bold text-white">{event.price > 0 ? `₹${event.price}` : 'Free'}</div>
+                <Badge variant={event.totalSeats - event.seatsBooked > 10 ? "secondary" : "destructive"}>
+                  {event.totalSeats > 0 ? `${event.totalSeats - event.seatsBooked} seats left` : 'Unlimited'}
+                </Badge>
               </div>
 
-              <div className="mt-4">
-                <Progress value={seatsPercent} className="h-2 rounded-full bg-white/10" />
-                <div className="text-xs text-gray-300 mt-2">{event.seatsBooked}/{event.totalSeats} seats booked</div>
-              </div>
-
-              <div className="mt-4">
-                <div className="font-semibold text-gray-200">{new Date(event.date).toLocaleDateString()}</div>
-                <div className="text-gray-300">{event.time || ''}</div>
-              </div>
-
-              <div className="mt-6">
-                <div className="flex items-center justify-between mb-3">
-                  <div>
-                    <div className="text-sm text-gray-300">Seats remaining</div>
-                    <div className="text-2xl font-bold text-white">{event.totalSeats > 0 ? `${event.totalSeats - event.seatsBooked}` : 'Unlimited'}</div>
-                  </div>
-                  <Badge className="bg-white/6 text-sm text-gray-100">{event.totalSeats > 0 ? `${event.totalSeats - event.seatsBooked} left` : 'Unlimited'}</Badge>
+              <div className="space-y-4 mb-6">
+                <div className="flex items-center gap-3 text-gray-200">
+                  <svg className="h-5 w-5 opacity-70" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3M16 7V3M3 11h18M5 21h14a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2z"/></svg>
+                  <span>{new Date(event.date).toLocaleDateString()}</span>
                 </div>
-
-                <Button onClick={register} disabled={loadingRegister || event.seatsBooked >= event.totalSeats || alreadyRegistered} className="w-full bg-white text-black hover:bg-white/90">{loadingRegister ? 'Registering…' : alreadyRegistered ? 'Registered' : event.seatsBooked >= event.totalSeats ? 'Sold out' : 'Register for Event'}</Button>
-                <Button variant="outline" onClick={async () => {
-                  const url = window.location.href;
-                  if (navigator.share) {
-                    try { await navigator.share({ title: event.title, url }); }
-                    catch (err) { console.error('share failed', err); }
-                  } else {
-                    try { await navigator.clipboard.writeText(url); toast.success('Link copied to clipboard'); }
-                    catch (err) { console.error('copy failed', err); toast.error('Failed to copy link'); }
-                  }
-                }} className="mt-3 w-full">Share Event</Button>
-
-                {isOrganizerOwner && (
-                  <Button variant="secondary" onClick={() => navigate(`/events/edit/${id}`)} className="mt-3 w-full">Edit Event</Button>
-                )}
-
+                <div className="flex items-center gap-3 text-gray-200">
+                  <svg className="h-5 w-5 opacity-70" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                  <span>{event.time || 'Time TBD'}</span>
+                </div>
               </div>
 
-              <Separator className="my-4" />
+              <div className="space-y-3">
+                <Button 
+                  onClick={register} 
+                  disabled={loadingRegister || event.seatsBooked >= event.totalSeats || alreadyRegistered} 
+                  className="w-full text-lg font-semibold py-6"
+                >
+                  {loadingRegister ? 'Processing...' : alreadyRegistered ? 'Already Registered' : event.seatsBooked >= event.totalSeats ? 'Sold Out' : 'Register Now'}
+                </Button>
 
-              <div className="text-sm text-gray-300">Location</div>
-              <div className="text-white font-semibold">{event.venue}</div>
-              <div className="text-gray-300">{event.location?.city || 'Online'}{event.location?.state ? `, ${event.location.state}` : ''}</div>
+                {/* Edit Button for Organizer */}
+                {isOrganizerOwner && (
+                  <Button 
+                    variant="outline" 
+                    onClick={() => navigate(`/events/edit/${id}`)} 
+                    className="w-full border-brand-500 text-brand-300 hover:bg-brand-500/10"
+                  >
+                    Edit Event Details
+                  </Button>
+                )}
+              </div>
             </div>
           </div>
         </div>

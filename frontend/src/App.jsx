@@ -4,18 +4,19 @@ import { useAuth } from '@clerk/clerk-react';
 import NavBar from './components/NavBar';
 import PageTransition from './components/PageTransition';
 
+// Pages
+import OrganizerDashboardDetailed from './pages/OrganizerDashboardDetailed';
 import Home from './pages/Home';
 import Explore from './pages/Explore';
 import EventDetails from './pages/EventDetails';
 import CreateEvent from './pages/CreateEvent';
-import OrganizerDashboard from './pages/OrganizerDashboard';
 import MyTickets from './pages/MyTickets';
 import Login from './pages/Login';
 import Register from './pages/Register';
-import { RequireAuth, RequireOrganizer } from './components/RequireAuth';
-import { ClerkProvider } from '@clerk/clerk-react';
-import { Toaster } from './components/ui/sonner';
 
+// Components
+import { RequireAuth, RequireOrganizer } from './components/RequireAuth';
+import { Toaster } from './components/ui/sonner';
 
 export default function App() {
   function RouteLogger() {
@@ -44,15 +45,28 @@ export default function App() {
                 path="/create"
                 element={<RequireAuth><CreateEvent /></RequireAuth>}
               />
+              
+              {/* FIX: Added missing Edit Route */}
+              <Route
+                path="/events/edit/:id"
+                element={<RequireAuth><CreateEvent /></RequireAuth>}
+              />
+
               <Route
                 path="/tickets"
                 element={<RequireAuth><MyTickets /></RequireAuth>}
               />
 
-              {/* Organizer-only */}
+              {/* Organizer-only Dashboard */}
               <Route
                 path="/dashboard"
-                element={<RequireAuth><RequireOrganizer><OrganizerDashboard /></RequireOrganizer></RequireAuth>}
+                element={
+                  <RequireAuth>
+                    <RequireOrganizer>
+                      <OrganizerDashboardDetailed />
+                    </RequireOrganizer>
+                  </RequireAuth>
+                }
               />
 
               {/* Auth pages */}
