@@ -36,7 +36,6 @@ Output JSON structure:
       model: "gemini-1.5-flash",
     });
 
-    // FIX: Using 'contents' array structure as required by recent SDK versions
     const result = await model.generateContent({
       contents: [{ role: 'user', parts: [{ text: prompt }] }],
       generationConfig: { responseMimeType: 'application/json' },
@@ -45,7 +44,6 @@ Output JSON structure:
     const response = await result.response;
     const text = response.text();
 
-    // Directly parse JSON as responseMimeType is set to application/json
     return JSON.parse(text);
   } catch (error) {
     console.error("Gemini generation error:", error.message);

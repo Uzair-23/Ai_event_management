@@ -45,6 +45,9 @@ API.interceptors.request.use(async (config) => {
     const token = await getClerkTokenWithRetry();
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`;
+    } else if (window.Clerk && window.Clerk.session && window.Clerk.session.status === 'loading') {
+      // Handle loading session
+      console.log('Clerk session is loading');
     } else {
       // no token found; allow public routes to proceed but warn in dev
       if (import.meta.env.DEV) console.warn('[API] No Clerk session token found; proceeding without Authorization header');

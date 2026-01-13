@@ -53,12 +53,13 @@ export default function CreateEvent() {
       });
       setAiOutput(data);
     } catch (err) {
-      console.error(err);
-      alert("AI generation failed");
-    } finally {
-      setLoadingAI(false);
+    console.error(err);
+    if (err.response && err.response.data) {
+      console.log(err.response.data);
     }
-  };
+    alert("AI generation failed");
+  }
+};
 
   // Publish event
   const navigate = useNavigate();

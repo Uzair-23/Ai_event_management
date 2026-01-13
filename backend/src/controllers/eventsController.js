@@ -79,6 +79,18 @@ exports.listEvents = async (req, res) => {
   }
 };
 
+// Get events by specific organizer for Dashboard
+exports.getEventsByOrganizer = async (req, res) => {
+  const organizerId = req.params.organizerId;
+  try {
+    const events = await Event.find({ organizer: organizerId });
+    res.json({ events });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
 exports.getEvent = async (req, res) => {
   try {
     const event = await Event.findById(req.params.id);
