@@ -8,9 +8,11 @@ import { State, City } from 'country-state-city';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Input } from '../components/ui/input';
 import { Button } from '../components/ui/button';
+import { toast } from "sonner"; // Assuming you use sonner for toasts
 
 export default function CreateEvent() {
   const { user, isSignedIn } = useUser();
+  const navigate = useNavigate();
 
   const [form, setForm] = useState({
     title: "",
@@ -32,51 +34,42 @@ export default function CreateEvent() {
   const [cities, setCities] = useState(['All']);
 
   const [aiOutput, setAiOutput] = useState(null);
-  const [loadingAI, setLoadingAI] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false); // FIXED: Declared isGenerating
   const [submitting, setSubmitting] = useState(false);
   const [coverPreview, setCoverPreview] = useState(null);
 
   // Generate AI-assisted event content
-  const handleAI = async () => {
-  if (!form.title || !form.category) {
-    alert("Please enter a title and category first!");
-    return;
-  }
-
-  setIsGenerating(true); // Start the loading state
-  
-  try {
-    const { data } = await API.post('/ai/generate', {
-      title: form.title,
-      idea: form.description,
-      category: form.category,
-      audience: "General"
-    });
-
-    // Update the form with AI data
-    setForm(prev => ({
-      ...prev,
-      description: data.description || prev.description,
-      // Add other fields as per your AI response structure
-    }));
-
-  } catch (err) {
-    console.error("AI Generation Error:", err.response?.data || err.message);
+  const handleAI = async (e) => {
+    if (e) e.preventDefault(); // FIXED: Prevents page refresh
     
-    // Better error messaging
-    const errMsg = err.response?.data?.message || "AI generation failed.";
-    alert(`${errMsg} \n\nTip: If you just changed your role to Organizer, please Log Out and Log In again.`);
-    
-  } finally {
-    // THIS IS THE FIX: This runs whether the AI succeeds OR fails
-    setIsGenerating(false); 
-  }
-};
+    if (!form.title || !form.idea || !form.category) {
+      alert("Please fill title, idea and category first");
+      return;
+    }
 
-  // Publish event
-  const navigate = useNavigate();
+    try {
+      setIsGenerating(true); // FIXED: Uses isGenerating
+      const { data } = await API.post("/ai/generate", {
+        title: form.title,
+        idea: form.idea,
+        category: form.category,
+        audience: "general",
+      });
+      setAiOutput(data);
+      
+      // Auto-fill description if AI provides it
+      if (data.description) {
+        setForm(prev => ({ ...prev, idea: data.description }));
+      }
+      toast.success("Content generated!");
+    } catch (err) {
+      console.error(err);
+      alert("AI generation failed. Ensure you are logged in as an ORGANIZER and have an API key.");
+    } finally {
+      setIsGenerating(false); // FIXED: Ensures loading stops even on error
+    }
+  };
 
-  // image select handler
   const handleCoverChange = (e) => {
     const f = e.target.files?.[0];
     if (!f) return;
@@ -85,7 +78,6 @@ export default function CreateEvent() {
     setForm({ ...form, coverImage: f });
   };
 
-  // load India states for state/city cascading
   useEffect(() => {
     const sts = State.getStatesOfCountry('IN') || [];
     setStates(sts.map(s => s.name));
@@ -106,14 +98,14 @@ export default function CreateEvent() {
     }
   }, [form.state]);
 
-  const publish = async () => {
+  const publish = async (e) => {
+    if (e) e.preventDefault();
     if (!isSignedIn || !user) {
       alert("Please sign in first");
       return;
     }
 
     setSubmitting(true);
-
     try {
       const payload = {
         title: form.title,
@@ -125,15 +117,13 @@ export default function CreateEvent() {
         location: form.isOnline ? 'Virtual' : form.location,
         state: form.isOnline ? 'N/A' : form.state,
         totalSeats: form.totalSeats,
-        organizerId: user.id, // Clerk user ID
+        organizerId: user.id,
         isOnline: !!form.isOnline,
         mapLink: form.isOnline ? undefined : (form.mapLink || undefined),
       };
 
       await API.post("/events", payload);
-
       alert("Event created successfully 🎉");
-      console.log('[NAV DEBUG] CreateEvent navigating to /explore');
       navigate('/explore');
     } catch (err) {
       console.error(err);
@@ -156,7 +146,9 @@ export default function CreateEvent() {
   return (
     <div className="min-h-screen bg-black text-white flex justify-center py-12">
       <div className="w-full max-w-6xl p-6 glass-strong glass-border neon-border rounded-lg">
-        <motion.h2 className="text-3xl font-bold mb-6 text-foreground" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>Create Event (AI Assisted)</motion.h2>
+        <motion.h2 className="text-3xl font-bold mb-6 text-foreground" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+          Create Event (AI Assisted)
+        </motion.h2>
 
         <SignedOut>
           <p className="text-muted-foreground">Please sign in to create an event.</p>
@@ -168,27 +160,28 @@ export default function CreateEvent() {
             <motion.div variants={item} className="md:col-span-2 space-y-4">
               <div>
                 <label className="block text-sm font-medium text-foreground mb-2">Event Title</label>
-                <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} className="w-full bg-background/20 border-white/5 focus-within:ring-primary/40" aria-label="Event title" />
+                <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} className="w-full bg-background/20 border-white/5" />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-foreground mb-2">Short idea (used by AI)</label>
-                <textarea value={form.idea} onChange={(e) => setForm({ ...form, idea: e.target.value })} placeholder="Short idea (used by AI)" className="w-full bg-background/20 border-white/5 p-3 rounded text-white" rows={4} aria-label="Idea" />
+                <label className="block text-sm font-medium text-foreground mb-2">Description / Idea (used by AI)</label>
+                <textarea value={form.idea} onChange={(e) => setForm({ ...form, idea: e.target.value })} className="w-full bg-background/20 border-white/5 p-3 rounded text-white" rows={4} />
               </div>
 
-              <div className="flex gap-3 items-center">
+              <div className="flex gap-3 items-end">
                 <div className="flex-1">
                   <label className="block text-sm font-medium text-foreground mb-2">Category</label>
-                  <Input value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} className="w-full bg-background/20 border-white/5" aria-label="Category" />
+                  <Input value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} className="w-full bg-background/20 border-white/5" />
                 </div>
 
                 <div className="w-44">
-                  <label className="block text-sm font-medium text-foreground mb-2">AI</label>
-                  <Button onClick={handleAI} disabled={loadingAI} className="w-full" style={{ backgroundColor: 'var(--primary)', color: 'white' }}>{loadingAI ? 'Generating…' : 'Generate'}</Button>
+                  {/* FIXED: type="button" added to prevent refresh, and uses isGenerating */}
+                  <Button type="button" onClick={handleAI} disabled={isGenerating} className="w-full bg-primary hover:bg-primary/80 text-white">
+                    {isGenerating ? 'Generating…' : 'Generate with AI'}
+                  </Button>
                 </div>
               </div>
 
-              {/* Image preview */}
               <div>
                 <label className="block text-sm font-medium text-foreground mb-2">Cover Image</label>
                 <div className="relative group">
@@ -199,9 +192,8 @@ export default function CreateEvent() {
                       <div className="text-sm text-muted-foreground">No image selected</div>
                     )}
                   </div>
-
                   <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition">
-                    <label htmlFor="coverFile" className="px-4 py-2 bg-white/6 text-white rounded cursor-pointer">Click to upload</label>
+                    <label htmlFor="coverFile" className="px-4 py-2 bg-white/10 text-white rounded cursor-pointer backdrop-blur-md border border-white/20">Click to upload</label>
                     <input id="coverFile" type="file" accept="image/*" onChange={handleCoverChange} className="hidden" />
                   </div>
                 </div>
@@ -210,15 +202,17 @@ export default function CreateEvent() {
 
             {/* Right: logistics */}
             <motion.div variants={item} className="md:col-span-1 space-y-4">
-              <div>
-                <h3 className="text-lg font-semibold text-foreground">Location & Time</h3>
-              </div>
+              <h3 className="text-lg font-semibold text-foreground border-b border-white/10 pb-2">Location & Time</h3>
 
               <div>
                 <label className="block text-sm font-medium text-foreground mb-2">Date</label>
                 <Popover>
-                  <PopoverTrigger className="w-full p-2 bg-background/20 border-white/5 rounded text-left text-white">{selectedDate ? new Date(selectedDate).toLocaleDateString() : 'Select date'}</PopoverTrigger>
-                  <PopoverContent>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="w-full justify-start text-left font-normal bg-background/20 border-white/5">
+                      {selectedDate ? new Date(selectedDate).toLocaleDateString() : 'Select date'}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0">
                     <Calendar mode="single" selected={selectedDate ? new Date(selectedDate) : undefined} onSelect={(d) => { const iso = d ? new Date(d).toISOString() : ''; setSelectedDate(iso); setForm({ ...form, date: iso }); }} />
                   </PopoverContent>
                 </Popover>
@@ -226,60 +220,54 @@ export default function CreateEvent() {
 
               <div>
                 <label className="block text-sm font-medium text-foreground mb-2">Time</label>
-                <input type="time" value={form.time} onChange={(e) => setForm({ ...form, time: e.target.value })} className="p-2 bg-background/20 border-white/5 rounded w-full text-white" aria-label="Time" />
+                <input type="time" value={form.time} onChange={(e) => setForm({ ...form, time: e.target.value })} className="p-2 bg-background/20 border-white/5 rounded w-full text-white" />
               </div>
 
-              <div>
-                <label className="flex items-center gap-2 text-sm">
-                  <input type="checkbox" className="accent-brand-500" checked={form.isOnline} onChange={(e) => setForm({ ...form, isOnline: e.target.checked })} />
-                  <span className="text-sm text-foreground">Online event</span>
-                </label>
+              <div className="flex items-center space-x-2 py-2">
+                <input type="checkbox" id="online" className="h-4 w-4 rounded border-white/10 bg-background/20 accent-primary" checked={form.isOnline} onChange={(e) => setForm({ ...form, isOnline: e.target.checked })} />
+                <label htmlFor="online" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">Online event</label>
               </div>
 
               <AnimatePresence>
                 {!form.isOnline && (
-                  <motion.div key="offline" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.18 }} className="space-y-3">
-                    <div>
-                      <label className="block text-sm font-medium text-foreground mb-2">Venue</label>
-                      <Input value={form.venue} onChange={(e) => setForm({ ...form, venue: e.target.value })} className="w-full bg-background/20 border-white/5" aria-label="Venue" />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-foreground mb-2">City</label>
-                      <Input value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} className="w-full bg-background/20 border-white/5" aria-label="City" />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-foreground mb-2">State</label>
-                      <select value={form.state} onChange={(e) => setForm({ ...form, state: e.target.value })} className="w-full p-2 bg-background/20 border-white/5 rounded text-white">
-                        <option value="">Select State</option>
-                        {states.map((s) => (<option key={s} value={s}>{s}</option>))}
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-foreground mb-2">Map Link</label>
-                      <Input value={form.mapLink} onChange={(e) => setForm({ ...form, mapLink: e.target.value })} className="w-full bg-background/20 border-white/5" aria-label="Map link" />
-                    </div>
+                  <motion.div key="offline" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="space-y-3 overflow-hidden">
+                    <Input placeholder="Venue Name" value={form.venue} onChange={(e) => setForm({ ...form, venue: e.target.value })} className="bg-background/20 border-white/5" />
+                    <Input placeholder="City" value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} className="bg-background/20 border-white/5" />
+                    <select value={form.state} onChange={(e) => setForm({ ...form, state: e.target.value })} className="w-full p-2 bg-background/20 border-white/5 rounded text-white text-sm">
+                      <option value="" className="bg-black text-white">Select State</option>
+                      {states.map((s) => (<option key={s} value={s} className="bg-black text-white">{s}</option>))}
+                    </select>
+                    <Input placeholder="Google Maps Link" value={form.mapLink} onChange={(e) => setForm({ ...form, mapLink: e.target.value })} className="bg-background/20 border-white/5" />
                   </motion.div>
                 )}
               </AnimatePresence>
 
               <div>
                 <label className="block text-sm font-medium text-foreground mb-2">Total Seats</label>
-                <Input type="number" value={form.totalSeats} onChange={(e) => setForm({ ...form, totalSeats: Number(e.target.value) })} className="w-full bg-background/20 border-white/5" aria-label="Total seats" />
+                <Input type="number" value={form.totalSeats} onChange={(e) => setForm({ ...form, totalSeats: Number(e.target.value) })} className="bg-background/20 border-white/5" />
               </div>
 
-              <div className="mt-4">
-                <Button onClick={publish} disabled={submitting} className="w-full btn-shimmer" style={{ backgroundColor: 'var(--accent)', color: 'black' }}>{submitting ? 'Creating…' : 'Publish Event'}</Button>
+              <div className="pt-4">
+                <Button onClick={publish} disabled={submitting} className="w-full bg-accent hover:bg-accent/90 text-black font-bold btn-shimmer">
+                  {submitting ? 'Creating…' : 'Publish Event'}
+                </Button>
               </div>
             </motion.div>
 
-            {/* AI Output */}
+            {/* AI Output Preview */}
             {aiOutput && (
-              <motion.div variants={item} className="md:col-span-3 mt-4 p-4 bg-card rounded">
-                <h3 className="font-semibold mb-2">AI Output</h3>
-                <pre className="whitespace-pre-wrap text-sm">{JSON.stringify(aiOutput, null, 2)}</pre>
+              <motion.div variants={item} className="md:col-span-3 mt-4 p-4 bg-white/5 border border-primary/20 rounded-xl">
+                <h3 className="text-primary font-bold mb-2 flex items-center gap-2">✨ AI Generated Details</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-muted-foreground">
+                   <div><span className="text-white font-medium">Venue Type:</span> {aiOutput.venueType}</div>
+                   <div><span className="text-white font-medium">Duration:</span> {aiOutput.suggestedDuration} hours</div>
+                </div>
+                <div className="mt-3">
+                   <p className="text-white font-medium mb-1">Highlights:</p>
+                   <div className="flex flex-wrap gap-2">
+                      {aiOutput.highlights?.map((h, i) => <span key={i} className="px-2 py-1 bg-primary/10 rounded-md border border-primary/20 text-xs">#{h}</span>)}
+                   </div>
+                </div>
               </motion.div>
             )}
           </motion.form>
