@@ -1,3 +1,4 @@
+// frontend/src/services/api.js
 import axios from 'axios';
 
 const API = axios.create({
@@ -26,7 +27,9 @@ const waitForClerk = () => {
 API.interceptors.request.use(async (config) => {
   try {
     const clerk = await waitForClerk();
-    const token = await clerk?.session?.getToken();
+    
+    // Pass the name of the template you created in your Clerk Dashboard
+    const token = await clerk?.session?.getToken({ template: 'short-lived-token' });
     
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;

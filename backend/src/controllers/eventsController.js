@@ -1,8 +1,8 @@
 const Event = require('../models/Event');
 const { fetchImageForQuery } = require('../services/unsplashService');
-
-// Create event (organizer only)
 const { z } = require('zod');
+
+// Create event (Restricted to ORGANIZER via middleware)
 exports.createEvent = async (req, res) => {
   const schema = z.object({
     title: z.string().min(3),
@@ -14,9 +14,8 @@ exports.createEvent = async (req, res) => {
     location: z.string().optional(),
     state: z.string().optional(),
     totalSeats: z.number().int().nonnegative().optional(),
-    organizerId: z.string().min(1),
     isOnline: z.boolean().optional(),
-    mapLink: z.string().url().optional(),
+    mapLink: z.string().url().optional().or(z.literal('')),
   });
 
   try {
@@ -30,7 +29,8 @@ exports.createEvent = async (req, res) => {
       time: parsed.time,
       venue: parsed.venue,
       totalSeats: parsed.totalSeats || 0,
-      organizer: parsed.organizerId,
+      // SECURE: Use the ID from the authenticated user token, not the request body
+      organizer: req.user.id, 
       isOnline: !!parsed.isOnline,
       mapLink: parsed.mapLink || undefined,
       location: {
@@ -39,23 +39,69 @@ exports.createEvent = async (req, res) => {
       },
     };
 
-    // fetch cover image based on category/title
+    // Fetch cover image based on category/title
     const query = `${data.category} ${data.title}`;
     const image = await fetchImageForQuery(query);
-    // fallback to source.unsplash which doesn't require the API key
     data.coverImage = image || `https://source.unsplash.com/featured/?${encodeURIComponent(query)}`;
 
     const event = new Event(data);
     await event.save();
     res.json({ event });
   } catch (err) {
-    console.error(err);
+    console.error('[CreateEvent Error]:', err);
     if (err.name === 'ZodError') return res.status(400).json({ message: 'Invalid payload', issues: err.issues });
     res.status(500).json({ message: 'Server error' });
   }
 };
 
-// Simple list with pagination and filters
+// Update event (Restricted to OWNER via middleware)
+exports.updateEvent = async (req, res) => {
+  try {
+    const event = await Event.findById(req.params.id);
+    if (!event) return res.status(404).json({ message: 'Event not found' });
+
+    // Defense-in-depth ownership check (redundant but safe)
+    const isOwner = event.organizer === req.user.id;
+    const isAdmin = req.user.role === 'ADMIN';
+
+    if (!isOwner && !isAdmin) {
+      return res.status(403).json({ message: 'Forbidden: You do not own this event' });
+    }
+
+    // Update fields
+    Object.assign(event, req.body);
+    await event.save();
+    res.json({ event });
+  } catch (err) {
+    console.error('[UpdateEvent Error]:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// Delete event (Restricted to OWNER via middleware)
+exports.deleteEvent = async (req, res) => {
+  try {
+    const event = await Event.findById(req.params.id);
+    if (!event) return res.status(404).json({ message: 'Event not found' });
+
+    // Ownership check
+    const isOwner = event.organizer === req.user.id;
+    const isAdmin = req.user.role === 'ADMIN';
+
+    if (!isOwner && !isAdmin) {
+      return res.status(403).json({ message: 'Forbidden: You do not own this event' });
+    }
+
+    await Event.findByIdAndDelete(req.params.id);
+    res.json({ message: 'Event deleted successfully' });
+  } catch (err) {
+    console.error('[DeleteEvent Error]:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// --- Read operations (Public or General) ---
+
 exports.listEvents = async (req, res) => {
   try {
     const { page = 1, limit = 12, category, q, city, state } = req.query;
@@ -68,8 +114,8 @@ exports.listEvents = async (req, res) => {
     const events = await Event.find(filter)
       .sort({ date: 1 })
       .skip((page - 1) * limit)
-      .limit(Number(limit))
-      .populate('organizer', 'name email');
+      .limit(Number(limit));
+      // Populate removed for now unless you add ref: 'User' to your Event model organizer field
 
     const total = await Event.countDocuments(filter);
     res.json({ events, total, page: Number(page), pages: Math.ceil(total / limit) });
@@ -79,11 +125,9 @@ exports.listEvents = async (req, res) => {
   }
 };
 
-// Get events by specific organizer for Dashboard
 exports.getEventsByOrganizer = async (req, res) => {
-  const organizerId = req.params.organizerId;
   try {
-    const events = await Event.find({ organizer: organizerId });
+    const events = await Event.find({ organizer: req.params.organizerId });
     res.json({ events });
   } catch (err) {
     console.error(err);
@@ -95,7 +139,7 @@ exports.getEvent = async (req, res) => {
   try {
     const event = await Event.findById(req.params.id);
     if (!event) return res.status(404).json({ message: 'Event not found' });
-    // attach convenient fields
+    
     const payload = {
       _id: event._id,
       title: event.title,
@@ -113,6 +157,7 @@ exports.getEvent = async (req, res) => {
       isOnline: !!event.isOnline,
       mapLink: event.mapLink || undefined,
       createdAt: event.createdAt,
+      organizer: event.organizer // Keep this for frontend ownership checks
     };
     res.json({ event: payload });
   } catch (err) {
@@ -121,11 +166,9 @@ exports.getEvent = async (req, res) => {
   }
 };
 
-// Featured events
 exports.featuredEvents = async (req, res) => {
   try {
     let events = await Event.find({ isFeatured: true }).sort({ date: 1 }).limit(10);
-    // fallback to latest events if none are featured
     if (!events || events.length === 0) {
       events = await Event.find().sort({ date: 1 }).limit(10);
     }
@@ -136,7 +179,6 @@ exports.featuredEvents = async (req, res) => {
   }
 };
 
-// Popular events - top 3 by registrations
 exports.getPopularEvents = async (req, res) => {
   try {
     const events = await Event.find().sort({ seatsBooked: -1 }).limit(3);
@@ -147,23 +189,20 @@ exports.getPopularEvents = async (req, res) => {
   }
 };
 
-// Search endpoint
 exports.searchEvents = async (req, res) => {
   try {
     const { q, city, state, page = 1, limit = 20 } = req.query;
     const filter = {};
     if (city && city !== 'All') filter['location.city'] = city;
     if (state && state !== 'All') filter['location.state'] = state;
+    if (q) filter.$text = { $search: q };
 
-    if (q) {
-      // prefer text search; but allow fallback to regex
-      filter.$text = { $search: q };
-    }
-
-    // if q provided but no text match supported, try regex fallback (handled by client if needed)
-    let query = Event.find(filter).sort({ date: 1 });
-    query = query.skip((page - 1) * limit).limit(Number(limit));
-    const events = await query.exec();
+    const events = await Event.find(filter)
+      .sort({ date: 1 })
+      .skip((page - 1) * limit)
+      .limit(Number(limit))
+      .exec();
+      
     const total = await Event.countDocuments(filter);
     res.json({ events, total, page: Number(page), pages: Math.ceil(total / limit) });
   } catch (err) {
@@ -172,41 +211,10 @@ exports.searchEvents = async (req, res) => {
   }
 };
 
-// distinct cities
 exports.getCities = async (req, res) => {
   try {
     const cities = await Event.distinct('location.city');
     res.json({ cities: cities.filter(Boolean) });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: 'Server error' });
-  }
-};
-
-exports.updateEvent = async (req, res) => {
-  try {
-    const event = await Event.findById(req.params.id);
-    if (!event) return res.status(404).json({ message: 'Event not found' });
-    if (!event.organizer.equals(req.user._id) && req.user.role !== 'ADMIN')
-      return res.status(403).json({ message: 'Forbidden' });
-
-    Object.assign(event, req.body);
-    await event.save();
-    res.json({ event });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: 'Server error' });
-  }
-};
-
-exports.deleteEvent = async (req, res) => {
-  try {
-    const event = await Event.findById(req.params.id);
-    if (!event) return res.status(404).json({ message: 'Event not found' });
-    if (!event.organizer.equals(req.user._id) && req.user.role !== 'ADMIN')
-      return res.status(403).json({ message: 'Forbidden' });
-    await event.remove();
-    res.json({ message: 'Event deleted' });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: 'Server error' });

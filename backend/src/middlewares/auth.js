@@ -53,10 +53,16 @@ const authMiddleware = async (req, res, next) => {
 };
 
 const requireRole = (role) => async (req, res, next) => {
-  const userRole = req.user.publicMetadata?.role || req.user.public_metadata?.role || req.user.metadata?.role;
+  // Check role in local user object OR in various metadata fields (Clerk)
+  const userRole = req.user.role || 
+                   req.user.publicMetadata?.role || 
+                   req.user.public_metadata?.role || 
+                   req.user.metadata?.role;
+
   console.log("[AUTH] Role detected:", userRole);
+  
   if (userRole !== role) {
-    return res.status(403).json({ message: 'Forbidden' });
+    return res.status(403).json({ message: 'Forbidden: Organizer access required' });
   }
   next();
 };

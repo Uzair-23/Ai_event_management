@@ -15,7 +15,7 @@ const ticketsController = require('../controllers/ticketsController');
 router.post('/:id/register', ticketsController.registerForEvent);
 
 // Public create for now (frontend will send Clerk organizerId)
-router.post('/', eventsController.createEvent);
+router.post('/', authMiddleware, requireRole('ORGANIZER'), eventsController.createEvent);
 router.put('/:id', authMiddleware, requireRole('ORGANIZER'), isEventOwner, eventsController.updateEvent);
 router.delete('/:id', authMiddleware, requireRole('ORGANIZER'), isEventOwner, eventsController.deleteEvent);
 router.get('/organizer/:organizerId', authMiddleware, eventsController.getEventsByOrganizer);
