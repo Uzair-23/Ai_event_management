@@ -1,91 +1,178 @@
+// backend/src/middlewares/auth.js
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const Event = require('../models/Event');
 
+/**
+ * Authentication middleware for Clerk tokens
+ */
 const authMiddleware = async (req, res, next) => {
   const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer '))
-    return res.status(401).json({ message: 'Unauthorized' });
+  
+  console.log("\n========================================");
+  console.log("[AUTH] New request to:", req.path);
+  console.log("[AUTH] Authorization header:", authHeader ? "✅ Present" : "❌ Missing");
+  
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    console.log("[AUTH] ❌ No Bearer token found");
+    return res.status(401).json({ message: 'Unauthorized - No token provided' });
+  }
 
   const token = authHeader.split(' ')[1];
+  console.log("[AUTH] Token length:", token.length);
 
   try {
-    // Try verifying with local secret first (backwards compatibility)
-    let decoded;
-    try {
-      decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret');
-    } catch (verErr) {
-      // If verify fails, try decoding (Clerk JWTs are signed by Clerk; if you have a JWK setup you can verify properly)
-      decoded = jwt.decode(token);
+    // Decode the JWT token from Clerk
+    const decoded = jwt.decode(token);
+    
+    if (!decoded) {
+      console.log("[AUTH] ❌ Token decode failed");
+      return res.status(401).json({ message: 'Invalid token' });
     }
 
-    if (!decoded) return res.status(401).json({ message: 'Invalid token' });
+    console.log("[AUTH] ✅ Token decoded successfully");
+    console.log("[AUTH] Full decoded token:", JSON.stringify(decoded, null, 2));
 
-    // Build a req.user object that works for both local users and Clerk tokens
-    // Clerk tokens typically have `sub` as user id and `public_metadata` or `publicMetadata` for role
-    const clerkId = decoded.sub || decoded.userId || decoded.id || decoded['user_id'] || decoded.payload?.sub || decoded.payload?.userId || decoded.claims?.sub || (decoded.claims && decoded.claims.sub);
-    const publicMetadata = decoded.public_metadata || decoded.publicMetadata || decoded.metadata || decoded.payload?.public_metadata || decoded.claims?.public_metadata || {};
-
-    // If we have a local user id, try fetching the User record to preserve internal fields (like password excluded)
-    if (decoded.id) {
-      const localUser = await User.findById(decoded.id).select('-password');
-      if (!localUser) return res.status(401).json({ message: 'User not found' });
-      // attach any publicMetadata from token (Clerk) if present
-      localUser.publicMetadata = publicMetadata;
-      req.user = localUser;
-      return next();
+    // Extract user ID from Clerk token
+    const userId = decoded.sub || decoded.userId || decoded.id;
+    
+    if (!userId) {
+      console.log("[AUTH] ❌ No user ID found in token");
+      return res.status(401).json({ message: 'Invalid token - no user ID' });
     }
 
-    // Otherwise, attach minimal user info from the token (Clerk flow)
-    if (clerkId) {
-      req.user = {
-        id: clerkId,
-        publicMetadata,
-      };
-      return next();
-    }
+    console.log("[AUTH] User ID (sub):", userId);
 
-    return res.status(401).json({ message: 'Unauthorized' });
+    // ⚠️ CRITICAL FIX: Role can be at TOP LEVEL or in metadata
+    // Check TOP LEVEL FIRST (your Clerk setup puts it here)
+    let userRole = decoded.role || decoded.Role;  // Check top level first!
+    
+    // If not at top level, check metadata
+    if (!userRole) {
+      const publicMetadata = 
+        decoded.public_metadata ||
+        decoded.publicMetadata ||
+        decoded.metadata ||
+        decoded.user_metadata ||
+        decoded.unsafeMetadata ||
+        {};
+      
+      userRole = 
+        publicMetadata.role || 
+        publicMetadata.Role || 
+        'USER';
+    }
+    
+    console.log("[AUTH] User role extracted:", userRole);
+
+    // Build user object
+    req.user = {
+      id: userId,
+      role: userRole,  // ✅ Attach role directly
+      publicMetadata: decoded.public_metadata || decoded.publicMetadata || {}
+    };
+
+    console.log("[AUTH] ✅ User object created:", JSON.stringify(req.user, null, 2));
+    console.log("========================================\n");
+
+    next();
+    
   } catch (err) {
-    console.error('authMiddleware error:', err);
-    return res.status(401).json({ message: 'Invalid token' });
+    console.error('[AUTH] ❌ Error:', err.message);
+    console.error('[AUTH] Stack:', err.stack);
+    return res.status(401).json({ 
+      message: 'Authentication failed',
+      error: process.env.NODE_ENV === 'development' ? err.message : undefined
+    });
   }
 };
 
-const requireRole = (role) => async (req, res, next) => {
-  // Check role in local user object OR in various metadata fields (Clerk)
-  const userRole = req.user.role || 
-                   req.user.publicMetadata?.role || 
-                   req.user.public_metadata?.role || 
-                   req.user.metadata?.role;
-
-  console.log("[AUTH] Role detected:", userRole);
+/**
+ * Role-based authorization middleware
+ */
+const requireRole = (requiredRole) => (req, res, next) => {
+  console.log("\n========================================");
+  console.log("[ROLE CHECK] Starting role check");
+  console.log("[ROLE CHECK] Required role:", requiredRole);
+  console.log("[ROLE CHECK] Full user object:", JSON.stringify(req.user, null, 2));
   
-  if (userRole !== role) {
-    return res.status(403).json({ message: 'Forbidden: Organizer access required' });
+  if (!req.user) {
+    console.log("[ROLE CHECK] ❌ No user in request");
+    return res.status(401).json({ message: 'Not authenticated' });
   }
+
+  // Get user role - it's directly on req.user.role now
+  const userRole = req.user.role || 'USER';
+
+  console.log("[ROLE CHECK] User role detected:", userRole);
+  
+  if (!userRole || userRole === 'USER') {
+    console.log("[ROLE CHECK] ❌ No valid role found");
+    return res.status(403).json({ 
+      message: 'Forbidden: No ORGANIZER role assigned',
+      hint: 'Role must be set in Clerk Dashboard',
+      currentRole: userRole
+    });
+  }
+
+  if (userRole !== requiredRole) {
+    console.log(`[ROLE CHECK] ❌ Role mismatch: expected "${requiredRole}", got "${userRole}"`);
+    return res.status(403).json({ 
+      message: `Forbidden: ${requiredRole} access required`,
+      yourRole: userRole,
+      requiredRole: requiredRole
+    });
+  }
+
+  console.log("[ROLE CHECK] ✅ Role check PASSED!");
+  console.log("========================================\n");
   next();
 };
 
+/**
+ * Check if user owns an event
+ */
 const isEventOwner = async (req, res, next) => {
   try {
     const { id } = req.params;
-    if (!id) return res.status(400).json({ message: 'Event ID missing' });
+    
+    console.log("[EVENT OWNER] Checking ownership for event:", id);
+    console.log("[EVENT OWNER] User ID:", req.user?.id);
+    
+    if (!id) {
+      return res.status(400).json({ message: 'Event ID missing' });
+    }
 
     const event = await Event.findById(id);
-    if (!event) return res.status(404).json({ message: 'Event not found' });
+    
+    if (!event) {
+      console.log("[EVENT OWNER] Event not found");
+      return res.status(404).json({ message: 'Event not found' });
+    }
 
-    // Support different organizer field names used in the project
     const organizerId = event.organizer || event.organizerId || event.organizer_id;
-    if (!organizerId)
-      return res.status(403).json({ message: 'Forbidden - not event owner' });
+    
+    console.log("[EVENT OWNER] Event organizer:", organizerId);
+    
+    if (!organizerId) {
+      console.log("[EVENT OWNER] No organizer set");
+      return res.status(403).json({ message: 'Event has no organizer' });
+    }
 
-    if (organizerId.toString() !== req.user.id.toString())
-      return res.status(403).json({ message: 'Forbidden - not event owner' });
+    if (organizerId.toString() !== req.user.id.toString()) {
+      console.log("[EVENT OWNER] Not the owner");
+      return res.status(403).json({ 
+        message: 'Forbidden - Not the event owner',
+        eventOrganizer: organizerId.toString(),
+        yourId: req.user.id.toString()
+      });
+    }
 
-    return next();
+    console.log("[EVENT OWNER] ✅ Ownership verified");
+    next();
+    
   } catch (err) {
-    console.error('isEventOwner error:', err);
+    console.error('[EVENT OWNER] Error:', err);
     return res.status(500).json({ message: 'Server error' });
   }
 };

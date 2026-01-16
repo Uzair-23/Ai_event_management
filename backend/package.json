@@ -11,6 +11,7 @@
   "license": "ISC",
   "description": "AI Event Management backend",
   "dependencies": {
+    "@clerk/backend": "^2.29.2",
     "@google/genai": "^1.35.0",
     "@google/generative-ai": "^0.24.1",
     "axios": "^1.13.2",
