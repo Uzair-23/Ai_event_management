@@ -1,12 +1,13 @@
 import { useEffect, useState, useContext, useRef } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { SignedIn, SignedOut, UserButton } from '@clerk/clerk-react';
+import { SignedIn, SignedOut, UserButton, useUser } from '@clerk/clerk-react';
 import { Input } from './ui/input';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from './ui/select';
 import { Button } from './ui/button';
 import { State, City } from 'country-state-city';
 import { FilterContext } from '../context/FilterContext';
 import { motion } from 'framer-motion';
+import { LayoutDashboard } from 'lucide-react';
 
 export default function NavBar() {
   const [q, setQ] = useState('');
@@ -18,6 +19,7 @@ export default function NavBar() {
   const navigate = useNavigate();
   const location = useLocation();
   const [scrolled, setScrolled] = useState(false);
+  const { user, isLoaded } = useUser();
   const MotionLink = motion(Link);
 
   const underlineVariants = {
@@ -25,9 +27,11 @@ export default function NavBar() {
     hover: { scaleX: 1 }
   };
 
-  // flag to avoid navigation loops when syncing state from URL
   const isSyncingRef = useRef(false);
   const syncTimeoutRef = useRef(null);
+
+  // ✅ Check if user is an organizer
+  const isOrganizer = isLoaded && user?.publicMetadata?.role === 'ORGANIZER';
 
   useEffect(() => {
     return () => clearTimeout(syncTimeoutRef.current);
@@ -40,13 +44,11 @@ export default function NavBar() {
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
-  // load India states and initialize cities based on current stateSelection
   useEffect(() => {
     const sts = State.getStatesOfCountry('IN') || [];
     const list = [{ name: 'All', isoCode: null }, ...sts.map(s => ({ name: s.name, isoCode: s.isoCode }))];
     setStates(list);
 
-    // if a state is already selected in context, populate cities for it
     if (stateSelection && stateSelection !== 'All') {
       const s = list.find(x => x.name === stateSelection);
       if (s && s.isoCode) {
@@ -61,7 +63,6 @@ export default function NavBar() {
     }
   }, []);
 
-  // when the selected state (from context) changes, update cities and reset city selection
   useEffect(() => {
     if (!stateSelection || stateSelection === 'All') {
       setCities(['All']);
@@ -73,7 +74,6 @@ export default function NavBar() {
     const s = states.find(x => x.name === stateSelection);
     const iso = s?.isoCode;
 
-    // if we're syncing from URL changes, avoid triggering other navigation
     isSyncingRef.current = true;
     setSelectedStateCode(iso || null);
     setCity('All');
@@ -89,14 +89,12 @@ export default function NavBar() {
     syncTimeoutRef.current = setTimeout(() => { isSyncingRef.current = false; }, 0);
   }, [stateSelection, states]);
 
-  // sync URL -> local state on location change (handles back/forward)
   useEffect(() => {
     const { pathname, search } = location;
 
     isSyncingRef.current = true;
 
     if (pathname === '/') {
-      // reset filters when returning home
       try { setStateSelection('All'); } catch (err) { console.error('sync reset state', err); }
       setCity('All');
       setQ('');
@@ -115,19 +113,16 @@ export default function NavBar() {
     syncTimeoutRef.current = setTimeout(() => { isSyncingRef.current = false; }, 0);
   }, [location]);
 
-  // debounce navigation (only when user has interacted)
   useEffect(() => {
     const shouldNavigate = q || (city && city !== 'All') || (stateSelection && stateSelection !== 'All');
 
-    // Prevent the auto-navigation from hijacking the Home route when there is no active filter
     if (location.pathname === '/' && !shouldNavigate) return;
-    if (!shouldNavigate) return; // don't auto-navigate on mount or when filters are cleared
+    if (!shouldNavigate) return;
 
-    // do not run auto-navigation while syncing state from URL
     if (isSyncingRef.current) return;
 
     const t = setTimeout(() => {
-      if (isSyncingRef.current) return; // double check inside timeout
+      if (isSyncingRef.current) return;
 
       const params = new URLSearchParams();
       if (q) params.set('q', q);
@@ -136,7 +131,6 @@ export default function NavBar() {
       const query = params.toString();
       const target = `/explore${query ? `?${query}` : ''}`;
 
-      // avoid navigating to the same path (prevents back/forward loops)
       const current = location.pathname + location.search;
       if (current === target) return;
 
@@ -155,16 +149,14 @@ export default function NavBar() {
     navigate(`/explore?${params.toString()}`);
   };
 
-  // Reset filters and navigate home when clicking the logo
   const handleLogoClick = (e) => {
     e.preventDefault();
-    isSyncingRef.current = true; // avoid triggering auto-nav while we reset
+    isSyncingRef.current = true;
     try {
       setStateSelection('All');
     } catch (err) { console.error('reset stateSelection', err); }
     setCity('All');
     setQ('');
-    // small delay to ensure syncing flag prevents immediate auto-nav via effects
     clearTimeout(syncTimeoutRef.current);
     syncTimeoutRef.current = setTimeout(() => { isSyncingRef.current = false; }, 0);
     navigate('/');
@@ -184,14 +176,23 @@ export default function NavBar() {
         className={`mx-auto ${scrolled ? 'max-w-6xl rounded-full' : 'w-full'} glass glass-border border-b border-primary/20 transition-all`}
       >
         <div className="flex items-center justify-between gap-4">
-          <Link to="/" onClick={handleLogoClick} className="flex items-center gap-2 relative">
+          {/* Logo */}
+          <Link to="/" onClick={handleLogoClick} className="flex items-center gap-2 relative shrink-0">
             <img src="/logo.png" alt="AI Events" className="h-8 w-auto" />
           </Link>
 
-          <form onSubmit={onSubmit} className="flex flex-1 max-w-3xl mx-6 items-center gap-3">
-            <Input placeholder="Search events..." value={q} onChange={(e) => setQ(e.target.value)} className="flex-1 focus:ring-2 focus:ring-neon-violet/40 transition-shadow" />
+          {/* Search Form - Hidden on small screens when scrolled */}
+          <form 
+            onSubmit={onSubmit} 
+            className={`${scrolled ? 'hidden lg:flex' : 'flex'} flex-1 max-w-3xl mx-6 items-center gap-3`}
+          >
+            <Input 
+              placeholder="Search events..." 
+              value={q} 
+              onChange={(e) => setQ(e.target.value)} 
+              className="flex-1 focus:ring-2 focus:ring-neon-violet/40 transition-shadow" 
+            />
 
-            {/* State selector (shadcn Select) */}
             <Select
               value={stateSelection}
               onValueChange={(val) => setStateSelection(val)}
@@ -207,7 +208,6 @@ export default function NavBar() {
               </SelectContent>
             </Select>
 
-            {/* City selector (shadcn Select) */}
             <Select
               value={city}
               onValueChange={(val) => setCity(val)}
@@ -225,46 +225,134 @@ export default function NavBar() {
             </Select>
           </form>
 
-          <div className="space-x-4 flex items-center">
-            <MotionLink to="/explore" whileHover="hover" className="px-3 py-1 rounded text-sm transition">
+          {/* Navigation Links */}
+          <div className="flex items-center gap-3">
+            {/* Explore */}
+            <MotionLink 
+              to="/explore" 
+              whileHover="hover" 
+              className="hidden md:block px-3 py-1 rounded text-sm transition"
+            >
               <div className="relative inline-block">
                 <span>Explore</span>
-                <motion.div variants={underlineVariants} initial="initial" whileHover="hover" className="absolute left-0 -bottom-1 h-[2px] w-full bg-primary" style={{ transformOrigin: 'center' }} transition={{ duration: 0.3, ease: 'easeInOut' }} />
+                <motion.div 
+                  variants={underlineVariants} 
+                  initial="initial" 
+                  className="absolute left-0 -bottom-1 h-[2px] w-full bg-primary" 
+                  style={{ transformOrigin: 'center' }} 
+                  transition={{ duration: 0.3, ease: 'easeInOut' }} 
+                />
               </div>
             </MotionLink>
 
-            <MotionLink to="/create" whileHover="hover" className="px-3 py-1 rounded-full bg-gradient-to-r from-brand-600 to-brand-500 text-white shadow-glow-md hover:from-brand-500 hover:to-brand-600 transition inline-flex items-center justify-center">
+            {/* Create Event */}
+            <MotionLink 
+              to="/create" 
+              whileHover="hover" 
+              className="hidden md:inline-flex px-3 py-1 rounded-full bg-gradient-to-r from-brand-600 to-brand-500 text-white shadow-glow-md hover:from-brand-500 hover:to-brand-600 transition items-center justify-center"
+            >
               <div className="relative inline-block">
                 <span>Create</span>
-                <motion.div variants={underlineVariants} initial="initial" whileHover="hover" className="absolute left-0 -bottom-1 h-[2px] w-full bg-primary" style={{ transformOrigin: 'center' }} transition={{ duration: 0.3, ease: 'easeInOut' }} />
               </div>
             </MotionLink>
 
-            <MotionLink to="/tickets" whileHover="hover" className="px-3 py-1 rounded text-sm transition">
+            {/* My Tickets */}
+            <MotionLink 
+              to="/tickets" 
+              whileHover="hover" 
+              className="hidden md:block px-3 py-1 rounded text-sm transition"
+            >
               <div className="relative inline-block">
                 <span>My Tickets</span>
-                <motion.div variants={underlineVariants} initial="initial" whileHover="hover" className="absolute left-0 -bottom-1 h-[2px] w-full bg-primary" style={{ transformOrigin: 'center' }} transition={{ duration: 0.3, ease: 'easeInOut' }} />
+                <motion.div 
+                  variants={underlineVariants} 
+                  initial="initial" 
+                  className="absolute left-0 -bottom-1 h-[2px] w-full bg-primary" 
+                  style={{ transformOrigin: 'center' }} 
+                  transition={{ duration: 0.3, ease: 'easeInOut' }} 
+                />
               </div>
             </MotionLink>
 
-            <SignedOut>
-              <MotionLink to="/login" whileHover="hover" className="px-3 py-1 rounded text-sm transition">
+            {/* ✅ Organizer Dashboard - Only visible to ORGANIZER role */}
+            {isOrganizer && (
+              <MotionLink 
+                to="/dashboard" 
+                whileHover="hover" 
+                className="hidden md:inline-flex px-3 py-1.5 rounded-lg bg-gradient-to-r from-primary/20 to-purple-500/20 hover:from-primary/30 hover:to-purple-500/30 border border-primary/40 text-primary transition items-center gap-2 shadow-lg shadow-primary/20"
+              >
+                <LayoutDashboard className="h-4 w-4" />
                 <div className="relative inline-block">
-                  <span>Login</span>
-                  <motion.div variants={underlineVariants} initial="initial" whileHover="hover" className="absolute left-0 -bottom-1 h-[2px] w-full bg-primary" style={{ transformOrigin: 'center' }} transition={{ duration: 0.3, ease: 'easeInOut' }} />
+                  <span className="font-semibold">Dashboard</span>
                 </div>
               </MotionLink>
-              <MotionLink to="/register" whileHover="hover" className="px-3 py-1 rounded text-sm transition">
+            )}
+
+            {/* Auth Links */}
+            <SignedOut>
+              <MotionLink 
+                to="/login" 
+                whileHover="hover" 
+                className="hidden md:block px-3 py-1 rounded text-sm transition"
+              >
+                <div className="relative inline-block">
+                  <span>Login</span>
+                  <motion.div 
+                    variants={underlineVariants} 
+                    initial="initial" 
+                    className="absolute left-0 -bottom-1 h-[2px] w-full bg-primary" 
+                    style={{ transformOrigin: 'center' }} 
+                    transition={{ duration: 0.3, ease: 'easeInOut' }} 
+                  />
+                </div>
+              </MotionLink>
+              <MotionLink 
+                to="/register" 
+                whileHover="hover" 
+                className="px-3 py-1 rounded text-sm transition"
+              >
                 <div className="relative inline-block">
                   <span>Register</span>
-                  <motion.div variants={underlineVariants} initial="initial" whileHover="hover" className="absolute left-0 -bottom-1 h-[2px] w-full bg-primary" style={{ transformOrigin: 'center' }} transition={{ duration: 0.3, ease: 'easeInOut' }} />
+                  <motion.div 
+                    variants={underlineVariants} 
+                    initial="initial" 
+                    className="absolute left-0 -bottom-1 h-[2px] w-full bg-primary" 
+                    style={{ transformOrigin: 'center' }} 
+                    transition={{ duration: 0.3, ease: 'easeInOut' }} 
+                  />
                 </div>
               </MotionLink>
             </SignedOut>
 
+            {/* User Button */}
             <SignedIn>
-              <div className="ml-3">
-                <UserButton />
+              <div className="ml-2">
+                <UserButton 
+                  afterSignOutUrl="/"
+                  appearance={{
+                    elements: {
+                      avatarBox: "h-9 w-9 ring-2 ring-primary/30 hover:ring-primary/50 transition"
+                    }
+                  }}
+                >
+                  {/* Custom menu items in UserButton */}
+                  <UserButton.MenuItems>
+                    <UserButton.Link
+                      label="My Tickets"
+                      labelIcon={<span>🎫</span>}
+                      href="/tickets"
+                    />
+                    {isOrganizer && (
+                      <UserButton.Link
+                        label="Dashboard"
+                        labelIcon={<LayoutDashboard className="h-4 w-4" />}
+                        href="/dashboard"
+                      />
+                    )}
+                    <UserButton.Action label="manageAccount" />
+                    <UserButton.Action label="signOut" />
+                  </UserButton.MenuItems>
+                </UserButton>
               </div>
             </SignedIn>
           </div>

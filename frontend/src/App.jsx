@@ -10,6 +10,7 @@ import Home from './pages/Home';
 import Explore from './pages/Explore';
 import EventDetails from './pages/EventDetails';
 import CreateEvent from './pages/CreateEvent';
+import EditEvent from './pages/EditEvent'; // ✅ ADD THIS IMPORT
 import MyTickets from './pages/MyTickets';
 import Login from './pages/Login';
 import Register from './pages/Register';
@@ -36,28 +37,43 @@ export default function App() {
         <main>
           <PageTransition>
             <Routes>
+              {/* Public routes */}
               <Route path="/" element={<Home />} />
               <Route path="/explore" element={<Explore />} />
               <Route path="/events/:id" element={<EventDetails />} />
+              <Route path="/login" element={<Login />} />
+              <Route path="/register" element={<Register />} />
 
               {/* Protected: signed-in users */}
               <Route
                 path="/create"
-                element={<RequireAuth><CreateEvent /></RequireAuth>}
+                element={
+                  <RequireAuth>
+                    <CreateEvent />
+                  </RequireAuth>
+                }
               />
               
-              {/* FIX: Added missing Edit Route */}
+              {/* ✅ FIXED: Edit Event Route */}
               <Route
-                path="/events/edit/:id"
-                element={<RequireAuth><CreateEvent /></RequireAuth>}
+                path="/edit-event/:id"
+                element={
+                  <RequireAuth>
+                    <EditEvent />
+                  </RequireAuth>
+                }
               />
 
               <Route
                 path="/tickets"
-                element={<RequireAuth><MyTickets /></RequireAuth>}
+                element={
+                  <RequireAuth>
+                    <MyTickets />
+                  </RequireAuth>
+                }
               />
 
-              {/* Organizer-only Dashboard */}
+              {/* ✅ FIXED: Organizer Dashboard - Added both routes */}
               <Route
                 path="/dashboard"
                 element={
@@ -68,10 +84,28 @@ export default function App() {
                   </RequireAuth>
                 }
               />
+              
+              <Route
+                path="/organizer-dashboard"
+                element={
+                  <RequireAuth>
+                    <RequireOrganizer>
+                      <OrganizerDashboardDetailed />
+                    </RequireOrganizer>
+                  </RequireAuth>
+                }
+              />
 
-              {/* Auth pages */}
-              <Route path="/login" element={<Login />} />
-              <Route path="/register" element={<Register />} />
+              {/* 404 Catch-all route */}
+              <Route path="*" element={
+                <div className="min-h-screen bg-black text-white flex items-center justify-center">
+                  <div className="text-center">
+                    <h1 className="text-4xl font-bold mb-4">404 - Page Not Found</h1>
+                    <p className="text-gray-400 mb-4">The page you're looking for doesn't exist.</p>
+                    <a href="/" className="text-primary hover:underline">Go back home</a>
+                  </div>
+                </div>
+              } />
             </Routes>
           </PageTransition>
         </main>
