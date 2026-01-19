@@ -1,30 +1,100 @@
+// backend/src/models/User.js
 const mongoose = require('mongoose');
-const bcrypt = require('bcryptjs');
 
 const UserSchema = new mongoose.Schema({
-  name: { type: String, required: true },
-  email: { type: String, required: true, unique: true, lowercase: true },
-  password: { type: String, required: true },
-  role: { type: String, enum: ['USER', 'ORGANIZER'], default: 'USER' },
-  interests: [{ type: String }],
+  // ============================================
+  // PRIMARY IDENTIFIER - Links to Clerk
+  // ============================================
+  clerkId: { 
+    type: String, 
+    required: true, 
+    unique: true, 
+    index: true 
+  },
+
+  // ============================================
+  // BASIC INFO (synced from Clerk on first auth)
+  // ============================================
+  name: { 
+    type: String, 
+    required: true,
+    default: 'New User'
+  },
+  
+  email: { 
+    type: String, 
+    required: true, 
+    lowercase: true,
+    trim: true
+  },
+
+  // ============================================
+  // ROLE (cached from Clerk's publicMetadata)
+  // Source of truth is Clerk, this is for quick DB queries
+  // ============================================
+  role: { 
+    type: String, 
+    enum: ['USER', 'ORGANIZER', 'ADMIN'], 
+    default: 'USER' 
+  },
+
+  // ============================================
+  // APP-SPECIFIC DATA (not stored in Clerk)
+  // ============================================
+  interests: [{ 
+    type: String,
+    trim: true
+  }],
+  
   location: {
-    city: String,
+    city: { type: String, trim: true },
+    state: { type: String, trim: true },
     lat: Number,
     lng: Number,
   },
-  createdAt: { type: Date, default: Date.now },
+
+  // Profile customization
+  bio: { 
+    type: String, 
+    maxlength: 500 
+  },
+  
+  profileImage: { 
+    type: String 
+  },
+
+  // User preferences
+  preferences: {
+    emailNotifications: { type: Boolean, default: true },
+    eventReminders: { type: Boolean, default: true },
+    marketingEmails: { type: Boolean, default: false }
+  },
+
+  // ============================================
+  // TIMESTAMPS
+  // ============================================
+  createdAt: { 
+    type: Date, 
+    default: Date.now 
+  },
+  
+  lastLoginAt: {
+    type: Date,
+    default: Date.now
+  }
 });
 
-// Hash password before save
-UserSchema.pre('save', async function (next) {
-  if (!this.isModified('password')) return next();
-  const salt = await bcrypt.genSalt(10);
-  this.password = await bcrypt.hash(this.password, salt);
-  next();
-});
+// ============================================
+// INDEXES for common queries
+// ============================================
+UserSchema.index({ email: 1 });
+UserSchema.index({ role: 1 });
+UserSchema.index({ 'location.city': 1 });
 
-UserSchema.methods.comparePassword = function (candidate) {
-  return bcrypt.compare(candidate, this.password);
-};
+
+// NO PASSWORD FIELD - Clerk handles authentication
+// NO bcrypt hooks - Not needed
+// NO comparePassword method - Not needed
+
 
 module.exports = mongoose.model('User', UserSchema);

@@ -1,16 +1,19 @@
 // backend/src/middlewares/auth.js
-const jwt = require('jsonwebtoken');
+const { verifyToken } = require('@clerk/backend');
 const User = require('../models/User');
 const Event = require('../models/Event');
 
 /**
  * Authentication middleware for Clerk tokens
+ * ✅ SECURE: Verifies JWT signature with Clerk
+ * ✅ JIT: Creates MongoDB user record on first authenticated request
  */
 const authMiddleware = async (req, res, next) => {
   const authHeader = req.headers.authorization;
   
   console.log("\n========================================");
   console.log("[AUTH] New request to:", req.path);
+  console.log("[AUTH] Method:", req.method);
   console.log("[AUTH] Authorization header:", authHeader ? "✅ Present" : "❌ Missing");
   
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -19,113 +22,277 @@ const authMiddleware = async (req, res, next) => {
   }
 
   const token = authHeader.split(' ')[1];
-  console.log("[AUTH] Token length:", token.length);
+  
+  // Quick validation
+  if (!token || token === 'undefined' || token === 'null') {
+    console.log("[AUTH] ❌ Invalid token value");
+    return res.status(401).json({ message: 'Unauthorized - Invalid token' });
+  }
 
   try {
-    // Decode the JWT token from Clerk
-    const decoded = jwt.decode(token);
+    // =============================================
+    // STEP 1: VERIFY TOKEN WITH CLERK (SECURE)
+    // =============================================
+    console.log("[AUTH] Verifying token with Clerk...");
     
-    if (!decoded) {
-      console.log("[AUTH] ❌ Token decode failed");
-      return res.status(401).json({ message: 'Invalid token' });
-    }
-
-    console.log("[AUTH] ✅ Token decoded successfully");
-    console.log("[AUTH] Full decoded token:", JSON.stringify(decoded, null, 2));
-
-    // Extract user ID from Clerk token
-    const userId = decoded.sub || decoded.userId || decoded.id;
+    const verifiedPayload = await verifyToken(token, {
+      secretKey: process.env.CLERK_SECRET_KEY,
+      // Uncomment and add your domains for extra security:
+      // authorizedParties: ['http://localhost:5173', 'https://yourdomain.com'],
+    });
     
-    if (!userId) {
-      console.log("[AUTH] ❌ No user ID found in token");
+    console.log("[AUTH] ✅ Token VERIFIED cryptographically");
+
+    // Extract Clerk user ID
+    const clerkId = verifiedPayload.sub;
+    
+    if (!clerkId) {
+      console.log("[AUTH] ❌ No user ID (sub) in verified token");
       return res.status(401).json({ message: 'Invalid token - no user ID' });
     }
 
-    console.log("[AUTH] User ID (sub):", userId);
+    console.log("[AUTH] Clerk ID:", clerkId);
 
-    // ⚠️ CRITICAL FIX: Role can be at TOP LEVEL or in metadata
-    // Check TOP LEVEL FIRST (your Clerk setup puts it here)
-    let userRole = decoded.role || decoded.Role;  // Check top level first!
+    // =============================================
+    // STEP 2: EXTRACT ROLE FROM VERIFIED TOKEN
+    // =============================================
+    let userRole = verifiedPayload.role || verifiedPayload.Role;
     
-    // If not at top level, check metadata
+    // Check metadata if not at top level
     if (!userRole) {
       const publicMetadata = 
-        decoded.public_metadata ||
-        decoded.publicMetadata ||
-        decoded.metadata ||
-        decoded.user_metadata ||
-        decoded.unsafeMetadata ||
+        verifiedPayload.public_metadata ||
+        verifiedPayload.publicMetadata ||
+        verifiedPayload.metadata ||
         {};
       
-      userRole = 
-        publicMetadata.role || 
-        publicMetadata.Role || 
-        'USER';
+      userRole = publicMetadata.role || publicMetadata.Role || 'USER';
     }
     
-    console.log("[AUTH] User role extracted:", userRole);
+    console.log("[AUTH] Role from token:", userRole);
 
-    // Build user object
+    // =============================================
+    // STEP 3: JUST-IN-TIME USER PROVISIONING
+    // =============================================
+    let dbUser = await User.findOne({ clerkId: clerkId });
+    
+    if (!dbUser) {
+      console.log("[AUTH] 🆕 First time user - creating MongoDB record...");
+      
+      // Extract user info from Clerk token
+      const email = 
+        verifiedPayload.email || 
+        verifiedPayload.email_addresses?.[0]?.email_address ||
+        verifiedPayload.primary_email_address ||
+        `${clerkId}@placeholder.local`;
+      
+      const name = 
+        verifiedPayload.name ||
+        `${verifiedPayload.first_name || ''} ${verifiedPayload.last_name || ''}`.trim() ||
+        verifiedPayload.username ||
+        'New User';
+      
+      try {
+        dbUser = await User.create({
+          clerkId: clerkId,
+          email: email,
+          name: name,
+          role: userRole,
+          interests: [],
+          lastLoginAt: new Date()
+        });
+        
+        console.log("[AUTH] ✅ New user created in MongoDB");
+        console.log("[AUTH] MongoDB ID:", dbUser._id);
+        
+      } catch (createError) {
+        // Handle race condition (duplicate key error)
+        if (createError.code === 11000) {
+          console.log("[AUTH] ⚠️ Race condition - user already exists, fetching...");
+          dbUser = await User.findOne({ clerkId: clerkId });
+          
+          if (!dbUser) {
+            console.error("[AUTH] ❌ Could not find or create user");
+            return res.status(500).json({ message: 'User provisioning failed' });
+          }
+        } else {
+          throw createError;
+        }
+      }
+    } else {
+      console.log("[AUTH] 👤 Existing user found in MongoDB");
+      
+      // Update last login time
+      dbUser.lastLoginAt = new Date();
+      
+      // Sync role from Clerk if it changed (Clerk is source of truth)
+      if (userRole && userRole !== 'USER' && dbUser.role !== userRole) {
+        console.log(`[AUTH] 🔄 Syncing role: ${dbUser.role} → ${userRole}`);
+        dbUser.role = userRole;
+      }
+      
+      await dbUser.save();
+    }
+
+    // =============================================
+    // STEP 4: BUILD USER OBJECT FOR REQUEST
+    // =============================================
     req.user = {
-      id: userId,
-      role: userRole,  // ✅ Attach role directly
-      publicMetadata: decoded.public_metadata || decoded.publicMetadata || {}
+      // Primary identifiers
+      id: clerkId,                      // Clerk ID (used for event ownership)
+      clerkId: clerkId,                 // Explicit Clerk ID
+      mongoId: dbUser._id,              // MongoDB ObjectId
+      
+      // User info
+      email: dbUser.email,
+      name: dbUser.name,
+      role: userRole,                   // Role from verified token (source of truth)
+      
+      // App-specific data
+      interests: dbUser.interests || [],
+      location: dbUser.location || {},
+      
+      // Clerk metadata
+      publicMetadata: verifiedPayload.public_metadata || {},
+      
+      // Session info
+      sessionId: verifiedPayload.sid,
+      
+      // Organization info (if using Clerk Organizations)
+      orgId: verifiedPayload.org_id,
+      orgRole: verifiedPayload.org_role,
     };
 
-    console.log("[AUTH] ✅ User object created:", JSON.stringify(req.user, null, 2));
+    console.log("[AUTH] ✅ Authentication successful");
+    console.log("[AUTH] User:", { 
+      clerkId: req.user.clerkId, 
+      mongoId: req.user.mongoId, 
+      role: req.user.role,
+      email: req.user.email 
+    });
     console.log("========================================\n");
 
     next();
     
   } catch (err) {
-    console.error('[AUTH] ❌ Error:', err.message);
-    console.error('[AUTH] Stack:', err.stack);
-    return res.status(401).json({ 
-      message: 'Authentication failed',
-      error: process.env.NODE_ENV === 'development' ? err.message : undefined
-    });
+    console.error('[AUTH] ❌ Authentication failed:', err.message);
+    
+    // Handle specific Clerk errors
+    const errorResponse = handleClerkError(err);
+    return res.status(errorResponse.status).json(errorResponse.body);
   }
 };
+
+/**
+ * Handle Clerk verification errors with user-friendly messages
+ */
+function handleClerkError(err) {
+  const reason = err.reason || err.code || err.message || 'unknown';
+  
+  console.error('[AUTH] Error reason:', reason);
+  
+  const errorMap = {
+    'token-expired': {
+      status: 401,
+      body: { 
+        message: 'Session expired', 
+        code: 'TOKEN_EXPIRED',
+        action: 'Please sign in again'
+      }
+    },
+    'token-invalid': {
+      status: 401,
+      body: { 
+        message: 'Invalid session', 
+        code: 'TOKEN_INVALID',
+        action: 'Please sign in again'
+      }
+    },
+    'token-not-active-yet': {
+      status: 401,
+      body: { 
+        message: 'Session not yet active', 
+        code: 'TOKEN_NOT_ACTIVE',
+        action: 'Please wait a moment and try again'
+      }
+    },
+    'jwk-failed-to-load': {
+      status: 503,
+      body: { 
+        message: 'Authentication service temporarily unavailable', 
+        code: 'SERVICE_UNAVAILABLE',
+        action: 'Please try again in a few moments'
+      }
+    },
+    'secret-key-missing': {
+      status: 500,
+      body: { 
+        message: 'Server configuration error', 
+        code: 'CONFIG_ERROR'
+      }
+    }
+  };
+
+  // Check if error reason matches any known error
+  for (const [key, value] of Object.entries(errorMap)) {
+    if (reason.toLowerCase().includes(key.replace(/-/g, ' ')) || 
+        reason.toLowerCase().includes(key)) {
+      return value;
+    }
+  }
+
+  // Default error response
+  return {
+    status: 401,
+    body: { 
+      message: 'Authentication failed',
+      code: 'AUTH_FAILED',
+      ...(process.env.NODE_ENV === 'development' && { 
+        debug: err.message,
+        reason: reason
+      })
+    }
+  };
+}
 
 /**
  * Role-based authorization middleware
  */
 const requireRole = (requiredRole) => (req, res, next) => {
-  console.log("\n========================================");
-  console.log("[ROLE CHECK] Starting role check");
+  console.log("\n[ROLE CHECK] ─────────────────────────");
   console.log("[ROLE CHECK] Required role:", requiredRole);
-  console.log("[ROLE CHECK] Full user object:", JSON.stringify(req.user, null, 2));
+  console.log("[ROLE CHECK] User role:", req.user?.role);
   
   if (!req.user) {
-    console.log("[ROLE CHECK] ❌ No user in request");
+    console.log("[ROLE CHECK] ❌ No authenticated user");
     return res.status(401).json({ message: 'Not authenticated' });
   }
 
-  // Get user role - it's directly on req.user.role now
   const userRole = req.user.role || 'USER';
 
-  console.log("[ROLE CHECK] User role detected:", userRole);
-  
-  if (!userRole || userRole === 'USER') {
-    console.log("[ROLE CHECK] ❌ No valid role found");
-    return res.status(403).json({ 
-      message: 'Forbidden: No ORGANIZER role assigned',
-      hint: 'Role must be set in Clerk Dashboard',
-      currentRole: userRole
-    });
-  }
+  // Handle role hierarchy if needed
+  const roleHierarchy = {
+    'ADMIN': ['ADMIN', 'ORGANIZER', 'USER'],
+    'ORGANIZER': ['ORGANIZER', 'USER'],
+    'USER': ['USER']
+  };
 
-  if (userRole !== requiredRole) {
-    console.log(`[ROLE CHECK] ❌ Role mismatch: expected "${requiredRole}", got "${userRole}"`);
+  const allowedRoles = roleHierarchy[userRole] || ['USER'];
+  
+  if (!allowedRoles.includes(requiredRole) && userRole !== requiredRole) {
+    console.log(`[ROLE CHECK] ❌ Access denied. Has: ${userRole}, Needs: ${requiredRole}`);
     return res.status(403).json({ 
       message: `Forbidden: ${requiredRole} access required`,
       yourRole: userRole,
-      requiredRole: requiredRole
+      requiredRole: requiredRole,
+      hint: requiredRole === 'ORGANIZER' 
+        ? 'Set role to ORGANIZER in Clerk Dashboard → Users → [User] → Public Metadata'
+        : undefined
     });
   }
 
-  console.log("[ROLE CHECK] ✅ Role check PASSED!");
-  console.log("========================================\n");
+  console.log("[ROLE CHECK] ✅ Access granted");
+  console.log("─────────────────────────────────────\n");
   next();
 };
 
@@ -134,47 +301,109 @@ const requireRole = (requiredRole) => (req, res, next) => {
  */
 const isEventOwner = async (req, res, next) => {
   try {
-    const { id } = req.params;
+    const eventId = req.params.id;
     
-    console.log("[EVENT OWNER] Checking ownership for event:", id);
-    console.log("[EVENT OWNER] User ID:", req.user?.id);
+    console.log("\n[OWNERSHIP] ─────────────────────────");
+    console.log("[OWNERSHIP] Event ID:", eventId);
+    console.log("[OWNERSHIP] User ID:", req.user?.id);
     
-    if (!id) {
+    if (!eventId) {
       return res.status(400).json({ message: 'Event ID missing' });
     }
 
-    const event = await Event.findById(id);
+    const event = await Event.findById(eventId);
     
     if (!event) {
-      console.log("[EVENT OWNER] Event not found");
+      console.log("[OWNERSHIP] ❌ Event not found");
       return res.status(404).json({ message: 'Event not found' });
     }
 
-    const organizerId = event.organizer || event.organizerId || event.organizer_id;
+    const organizerId = event.organizer?.toString();
+    const userId = req.user.id?.toString();
+    const isAdmin = req.user.role === 'ADMIN';
     
-    console.log("[EVENT OWNER] Event organizer:", organizerId);
-    
-    if (!organizerId) {
-      console.log("[EVENT OWNER] No organizer set");
-      return res.status(403).json({ message: 'Event has no organizer' });
-    }
+    console.log("[OWNERSHIP] Event organizer:", organizerId);
+    console.log("[OWNERSHIP] Request user:", userId);
+    console.log("[OWNERSHIP] Is admin:", isAdmin);
 
-    if (organizerId.toString() !== req.user.id.toString()) {
-      console.log("[EVENT OWNER] Not the owner");
+    if (!isAdmin && organizerId !== userId) {
+      console.log("[OWNERSHIP] ❌ Not the owner");
       return res.status(403).json({ 
         message: 'Forbidden - Not the event owner',
-        eventOrganizer: organizerId.toString(),
-        yourId: req.user.id.toString()
+        hint: 'You can only modify events you created'
       });
     }
 
-    console.log("[EVENT OWNER] ✅ Ownership verified");
+    // Attach event to request for downstream use
+    req.event = event;
+    
+    console.log("[OWNERSHIP] ✅ Ownership verified");
+    console.log("─────────────────────────────────────\n");
     next();
     
   } catch (err) {
-    console.error('[EVENT OWNER] Error:', err);
-    return res.status(500).json({ message: 'Server error' });
+    console.error('[OWNERSHIP] Error:', err);
+    return res.status(500).json({ message: 'Server error checking ownership' });
   }
 };
 
-module.exports = { authMiddleware, requireRole, isEventOwner };
+/**
+ * Optional auth middleware - doesn't fail if no token
+ * Useful for public endpoints that behave differently for logged-in users
+ */
+const optionalAuth = async (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    // No token - continue without user
+    req.user = null;
+    return next();
+  }
+
+  // Try to authenticate, but don't fail if it doesn't work
+  try {
+    const token = authHeader.split(' ')[1];
+    
+    if (!token || token === 'undefined' || token === 'null') {
+      req.user = null;
+      return next();
+    }
+
+    const verifiedPayload = await verifyToken(token, {
+      secretKey: process.env.CLERK_SECRET_KEY,
+    });
+
+    const clerkId = verifiedPayload.sub;
+    const dbUser = await User.findOne({ clerkId });
+
+    if (dbUser) {
+      req.user = {
+        id: clerkId,
+        clerkId: clerkId,
+        mongoId: dbUser._id,
+        email: dbUser.email,
+        name: dbUser.name,
+        role: dbUser.role,
+      };
+    } else {
+      req.user = {
+        id: clerkId,
+        clerkId: clerkId,
+        role: 'USER'
+      };
+    }
+  } catch (err) {
+    // Token invalid - continue without user
+    console.log('[OPTIONAL AUTH] Token validation failed, continuing as anonymous');
+    req.user = null;
+  }
+  
+  next();
+};
+
+module.exports = { 
+  authMiddleware, 
+  requireRole, 
+  isEventOwner,
+  optionalAuth 
+};
