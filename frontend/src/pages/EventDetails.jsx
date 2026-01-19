@@ -230,16 +230,7 @@ export default function EventDetails() {
                   >
                     ✏️ Edit Event Details
                   </Button>
-                )}
-                
-                {/* Debug info in development */}
-                {import.meta.env.DEV && isSignedIn && (
-                  <div className="text-xs text-gray-500 mt-2 p-2 bg-black/20 rounded">
-                    <div>User ID: {user?.id}</div>
-                    <div>Organizer ID: {eventOrganizerId}</div>
-                    <div>Is Owner: {isOrganizerOwner ? 'Yes' : 'No'}</div>
-                  </div>
-                )}
+                )} 
               </div>
             </div>
           </div>
