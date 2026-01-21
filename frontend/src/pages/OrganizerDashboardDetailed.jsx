@@ -1,3 +1,4 @@
+// C:\Users\uzair\Downloads\ai-event-management\frontend\src\pages\OrganizerDashboardDetailed.jsx
 import { useEffect, useState } from 'react';
 import API from '../services/api';
 import { socket, joinOrganizerRoom } from '../services/socket';
@@ -36,32 +37,37 @@ export default function OrganizerDashboardDetailed() {
   const [loadingAttendees, setLoadingAttendees] = useState(false);
   const navigate = useNavigate();
 
-  // ✅ Helper function to safely get location string
+  // Helper function to safely get location string
   const getLocationString = (event) => {
     if (!event) return 'N/A';
     
-    // If location is an object
+    if (event.isOnline) return 'Online';
+    
     if (typeof event.location === 'object' && event.location !== null) {
       const city = event.location.city || event.location.name || '';
       const state = event.location.state || '';
-      return `${city}${city && state ? ', ' : ''}${state}` || 'N/A';
+      return city || state || 'N/A';
     }
     
-    // If location is a string
     return event.location || 'N/A';
   };
 
-  // ✅ Helper function to safely get state string
+  // Helper function to safely get state string
   const getStateString = (event) => {
-    if (!event) return 'N/A';
+    if (!event) return '';
     
-    // If state is an object
+    if (event.isOnline) return '';
+    
     if (typeof event.state === 'object' && event.state !== null) {
-      return event.state.name || event.state.state || 'N/A';
+      return event.state.name || event.state.state || '';
     }
     
-    // If state is a string
-    return event.state || 'N/A';
+    // If location is object and has state
+    if (typeof event.location === 'object' && event.location?.state) {
+      return event.location.state;
+    }
+    
+    return event.state || '';
   };
 
   // Fetch organizer's events
@@ -71,10 +77,10 @@ export default function OrganizerDashboardDetailed() {
         setLoading(true);
         const { data } = await API.get('/events?limit=1000');
         
-        console.log('[DASHBOARD] Raw events:', data.events);
+        console.log('[DASHBOARD] Raw events count:', data.events?.length);
         
         // Filter events for current organizer
-        const myEvents = data.events.filter((e) => {
+        const myEvents = (data.events || []).filter((e) => {
           const eventOrganizerId = e.organizerId || e.organizer?._id || e.organizer;
           return String(eventOrganizerId) === String(user?.id);
         });
@@ -82,7 +88,7 @@ export default function OrganizerDashboardDetailed() {
         setAllEvents(myEvents);
         setEvents(myEvents);
         
-        console.log('[DASHBOARD] Loaded events:', myEvents.length);
+        console.log('[DASHBOARD] My events:', myEvents.length);
       } catch (err) {
         console.error('Error fetching organizer events:', err);
         toast.error('Failed to load events');
@@ -98,35 +104,43 @@ export default function OrganizerDashboardDetailed() {
   useEffect(() => {
     if (!user?.id) return;
     
-    socket.connect();
-    joinOrganizerRoom(user.id);
+    try {
+      socket.connect();
+      joinOrganizerRoom(user.id);
 
-    socket.on('registration', (payload) => {
-      setLiveRegs((s) => [payload, ...s].slice(0, 15));
-      toast.success('New registration received!');
-      
-      // Update event seats count
-      setEvents(prev => prev.map(e => 
-        e._id === payload.eventId 
-          ? { ...e, seatsBooked: (e.seatsBooked || 0) + 1 }
-          : e
-      ));
-      setAllEvents(prev => prev.map(e => 
-        e._id === payload.eventId 
-          ? { ...e, seatsBooked: (e.seatsBooked || 0) + 1 }
-          : e
-      ));
-    });
+      socket.on('registration', (payload) => {
+        console.log('[DASHBOARD] Live registration received:', payload);
+        setLiveRegs((s) => [payload, ...s].slice(0, 15));
+        toast.success('New registration received!');
+        
+        // Update event seats count
+        setEvents(prev => prev.map(e => 
+          e._id === payload.eventId 
+            ? { ...e, seatsBooked: (e.seatsBooked || 0) + 1 }
+            : e
+        ));
+        setAllEvents(prev => prev.map(e => 
+          e._id === payload.eventId 
+            ? { ...e, seatsBooked: (e.seatsBooked || 0) + 1 }
+            : e
+        ));
+      });
 
-    return () => {
-      socket.off('registration');
-      socket.disconnect();
-    };
+      return () => {
+        socket.off('registration');
+        socket.disconnect();
+      };
+    } catch (err) {
+      console.error('[DASHBOARD] Socket error:', err);
+    }
   }, [user]);
 
   // Filter events by status
   const filterEvents = (status) => {
     setActiveTab(status);
+    setSelectedEvent(null); // Close any expanded attendee list
+    setAttendees([]);
+    
     const now = new Date();
     
     if (status === 'all') {
@@ -173,16 +187,26 @@ export default function OrganizerDashboardDetailed() {
     }
   };
 
-  // Fetch attendees for an event
+  // ✅ UPDATED: Fetch attendees using the new secure endpoint
   const fetchAttendees = async (eventId) => {
     try {
       setLoadingAttendees(true);
-      const { data } = await API.get(`/events/${eventId}/attendees`);
-      setAttendees(data.attendees || data || []);
+      // ✅ Use the new tickets endpoint for organizers
+      const { data } = await API.get(`/tickets/event/${eventId}`);
+      console.log('[DASHBOARD] Attendees data:', data);
+      setAttendees(data.attendees || []);
       setSelectedEvent(eventId);
     } catch (err) {
       console.error('Error fetching attendees:', err);
-      toast.error('Failed to load attendees');
+      
+      // Handle specific error cases
+      if (err.response?.status === 403) {
+        toast.error('Access denied: You can only view attendees for your own events');
+      } else if (err.response?.status === 404) {
+        toast.error('Event not found');
+      } else {
+        toast.error('Failed to load attendees');
+      }
       setAttendees([]);
     } finally {
       setLoadingAttendees(false);
@@ -197,11 +221,10 @@ export default function OrganizerDashboardDetailed() {
     }
 
     const csv = [
-      ['Name', 'Email', 'Ticket ID', 'Registration Date'],
+      ['User ID', 'Ticket ID', 'Registration Date'],
       ...attendees.map(a => [
-        a.userName || a.name || 'N/A',
-        a.userEmail || a.email || 'N/A',
-        a.ticketId || a._id,
+        a.userId || 'N/A',
+        a.ticketId || a._id || 'N/A',
         a.createdAt ? new Date(a.createdAt).toLocaleDateString() : 'N/A'
       ])
     ].map(row => row.join(',')).join('\n');
@@ -210,8 +233,9 @@ export default function OrganizerDashboardDetailed() {
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${event.title}-attendees.csv`;
+    a.download = `${event.title.replace(/[^a-z0-9]/gi, '_')}-attendees.csv`;
     a.click();
+    window.URL.revokeObjectURL(url);
     toast.success('Attendees exported successfully');
   };
 
@@ -222,7 +246,11 @@ export default function OrganizerDashboardDetailed() {
     totalAttendees: allEvents.reduce((sum, e) => sum + (e.seatsBooked || 0), 0),
     totalCapacity: allEvents.reduce((sum, e) => sum + (e.totalSeats || 0), 0),
     averageOccupancy: allEvents.length > 0 
-      ? Math.round((allEvents.reduce((sum, e) => sum + ((e.seatsBooked || 0) / (e.totalSeats || 1) * 100), 0) / allEvents.length))
+      ? Math.round((allEvents.reduce((sum, e) => {
+          const capacity = e.totalSeats || 1;
+          const booked = e.seatsBooked || 0;
+          return sum + (booked / capacity * 100);
+        }, 0) / allEvents.length))
       : 0
   };
 
@@ -311,10 +339,10 @@ export default function OrganizerDashboardDetailed() {
         {/* Main Content Tabs */}
         <Tabs value={activeTab} onValueChange={filterEvents} className="w-full">
           <TabsList className="grid w-full max-w-2xl grid-cols-4 mb-8 bg-white/5">
-            <TabsTrigger value="all">All Events</TabsTrigger>
-            <TabsTrigger value="upcoming">Upcoming</TabsTrigger>
-            <TabsTrigger value="ongoing">Ongoing</TabsTrigger>
-            <TabsTrigger value="past">Past</TabsTrigger>
+            <TabsTrigger value="all">All ({allEvents.length})</TabsTrigger>
+            <TabsTrigger value="upcoming">Upcoming ({allEvents.filter(e => new Date(e.date) > new Date()).length})</TabsTrigger>
+            <TabsTrigger value="ongoing">Today ({allEvents.filter(e => new Date(e.date).toDateString() === new Date().toDateString()).length})</TabsTrigger>
+            <TabsTrigger value="past">Past ({allEvents.filter(e => new Date(e.date) < new Date()).length})</TabsTrigger>
           </TabsList>
 
           {/* Events List */}
@@ -337,13 +365,15 @@ export default function OrganizerDashboardDetailed() {
             ) : (
               <div className="grid grid-cols-1 gap-6">
                 {events.map((event) => {
-                  const percent = Math.round((event.seatsBooked / event.totalSeats) * 100) || 0;
+                  const percent = event.totalSeats > 0 
+                    ? Math.round((event.seatsBooked || 0) / event.totalSeats * 100) 
+                    : 0;
                   const statusInfo = getEventStatus(event.date);
                   const isExpanded = selectedEvent === event._id;
                   
-                  // ✅ Safely extract location and state
                   const locationStr = getLocationString(event);
                   const stateStr = getStateString(event);
+                  const fullLocation = locationStr + (stateStr ? `, ${stateStr}` : '');
 
                   return (
                     <div 
@@ -353,7 +383,7 @@ export default function OrganizerDashboardDetailed() {
                       {/* Event Header */}
                       <div className="flex flex-col md:flex-row justify-between items-start gap-4 mb-4">
                         <div className="flex-1">
-                          <div className="flex items-start gap-3 mb-2">
+                          <div className="flex items-start gap-3 mb-2 flex-wrap">
                             <h3 className="text-2xl font-bold">{event.title}</h3>
                             <Badge className={`${statusInfo.color} text-white border-0`}>
                               {statusInfo.text}
@@ -374,11 +404,10 @@ export default function OrganizerDashboardDetailed() {
                               <Clock className="h-4 w-4" />
                               {event.time || 'TBD'}
                             </div>
-                            {!event.isOnline && (
+                            {!event.isOnline && fullLocation !== 'N/A' && (
                               <div className="flex items-center gap-2">
                                 <MapPin className="h-4 w-4" />
-                                {/* ✅ FIXED: Render strings, not objects */}
-                                {locationStr}{stateStr !== 'N/A' && locationStr !== 'N/A' ? `, ${stateStr}` : stateStr}
+                                {fullLocation}
                               </div>
                             )}
                           </div>
@@ -460,16 +489,22 @@ export default function OrganizerDashboardDetailed() {
                           variant="ghost"
                           size="sm"
                           onClick={() => isExpanded ? setSelectedEvent(null) : fetchAttendees(event._id)}
-                          className="w-full justify-between"
+                          className="w-full justify-between hover:bg-white/5"
                         >
-                          <span>View Attendees ({event.seatsBooked || 0})</span>
+                          <span className="flex items-center gap-2">
+                            <Users className="h-4 w-4" />
+                            View Attendees ({event.seatsBooked || 0})
+                          </span>
                           <span>{isExpanded ? '▲' : '▼'}</span>
                         </Button>
 
                         {isExpanded && (
                           <div className="mt-4 space-y-3">
                             {loadingAttendees ? (
-                              <p className="text-center text-gray-400 py-4">Loading attendees...</p>
+                              <div className="text-center py-4">
+                                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary mx-auto mb-2"></div>
+                                <p className="text-gray-400">Loading attendees...</p>
+                              </div>
                             ) : attendees.length > 0 ? (
                               <>
                                 <div className="flex justify-end mb-2">
@@ -486,21 +521,18 @@ export default function OrganizerDashboardDetailed() {
                                 <div className="max-h-64 overflow-y-auto space-y-2">
                                   {attendees.map((attendee, idx) => (
                                     <div 
-                                      key={idx} 
+                                      key={attendee.ticketId || idx} 
                                       className="bg-white/5 rounded-lg p-3 flex justify-between items-center"
                                     >
                                       <div>
-                                        <p className="font-medium">
-                                          {attendee.userName || attendee.name || 'Anonymous'}
+                                        <p className="font-medium font-mono text-sm">
+                                          {attendee.userId}
                                         </p>
                                         <p className="text-xs text-gray-400">
-                                          {attendee.userEmail || attendee.email || 'No email'}
+                                          Ticket: {attendee.ticketId}
                                         </p>
                                       </div>
                                       <div className="text-right">
-                                        <p className="text-xs text-gray-400">
-                                          Ticket: {attendee.ticketId || attendee._id?.slice(-6)}
-                                        </p>
                                         {attendee.createdAt && (
                                           <p className="text-xs text-gray-500">
                                             {format(new Date(attendee.createdAt), 'MMM dd, yyyy')}
@@ -535,13 +567,13 @@ export default function OrganizerDashboardDetailed() {
             <div className="space-y-3 max-h-96 overflow-y-auto">
               {liveRegs.map((reg, i) => (
                 <div 
-                  key={i} 
+                  key={`${reg.ticketId}-${i}`} 
                   className="flex items-center justify-between p-4 bg-primary/10 rounded-lg border border-primary/20 animate-in fade-in slide-in-from-top-2"
                 >
                   <div>
                     <span className="font-medium text-white">New Registration!</span>
                     <p className="text-sm text-gray-400">
-                      Ticket: {reg.ticketId} • Event: {reg.eventTitle || 'Event'}
+                      Ticket: {reg.ticketId} • {reg.eventTitle || 'Event'}
                     </p>
                   </div>
                   <Badge className="bg-green-500/20 text-green-400 border-green-500/50">

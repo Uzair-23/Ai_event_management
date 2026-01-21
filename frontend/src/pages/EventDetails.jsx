@@ -1,3 +1,4 @@
+// C:\Users\uzair\Downloads\ai-event-management\frontend\src\pages\EventDetails.jsx
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import API from '../services/api';
@@ -16,14 +17,16 @@ export default function EventDetails() {
 
   const [loadingRegister, setLoadingRegister] = useState(false);
   const [alreadyRegistered, setAlreadyRegistered] = useState(false);
+  const [checkingRegistration, setCheckingRegistration] = useState(true);
 
+  // Fetch event details
   useEffect(() => {
     const fetchEvent = async () => {
       try {
         console.log('[EVENT DETAILS] Fetching event:', id);
         const { data } = await API.get(`/events/${id}`);
         console.log('[EVENT DETAILS] Event data:', data);
-        setEvent(data.event || data); // Handle both {event: ...} and direct event object
+        setEvent(data.event || data);
       } catch (err) {
         console.error('[EVENT DETAILS] Fetch error:', err);
         toast.error('Failed to load event details');
@@ -32,30 +35,45 @@ export default function EventDetails() {
     fetchEvent();
   }, [id]);
 
+  // Check if user is already registered
   useEffect(() => {
-    // Check if current user already has a ticket for this event
-    if (!isSignedIn || !user) return;
+    if (!isSignedIn || !user) {
+      setCheckingRegistration(false);
+      return;
+    }
     
     const checkRegistration = async () => {
       try {
-        const { data } = await API.get(`/tickets/me?userId=${user.id}`);
-        const found = (data.tickets || []).some((t) => String(t.event._id) === String(id));
+        setCheckingRegistration(true);
+        // ✅ SECURE: No userId in query - backend gets it from auth token
+        const { data } = await API.get('/tickets/me');
+        const found = (data.tickets || []).some((t) => {
+          const ticketEventId = t.event?._id || t.event;
+          return String(ticketEventId) === String(id);
+        });
         setAlreadyRegistered(found);
+        console.log('[EVENT DETAILS] Already registered:', found);
       } catch (err) {
         console.error('[EVENT DETAILS] Check registration error:', err);
+        // Don't show error toast - just assume not registered
+        setAlreadyRegistered(false);
+      } finally {
+        setCheckingRegistration(false);
       }
     };
+    
     checkRegistration();
   }, [user, isSignedIn, id]);
 
+  // Handle registration
   const register = async () => {
     if (!isSignedIn || !user) {
       toast.error('Please sign in to register');
-      return navigate('/');
+      return navigate('/login');
     }
     
     if (event.seatsBooked >= event.totalSeats) {
-      return toast.error('Event is full');
+      return toast.error('Event is sold out');
     }
     
     if (alreadyRegistered) {
@@ -64,32 +82,73 @@ export default function EventDetails() {
 
     setLoadingRegister(true);
     try {
-      await API.post(`/events/${id}/register`, { userId: user.id });
+      // ✅ SECURE: No userId in body - backend gets it from auth token
+      const { data } = await API.post('/tickets/register', { 
+        eventId: id 
+      });
+      
+      console.log('[EVENT DETAILS] Registration successful:', data);
       toast.success('Registration successful! Redirecting to tickets...');
+      
+      // Update local state
+      setAlreadyRegistered(true);
+      if (event) {
+        setEvent(prev => ({
+          ...prev,
+          seatsBooked: (prev.seatsBooked || 0) + 1
+        }));
+      }
+      
       setTimeout(() => {
         navigate('/tickets');
       }, 1500);
     } catch (err) {
       console.error('[EVENT DETAILS] Registration error:', err);
-      toast.error(err.response?.data?.message || 'Registration failed');
+      const message = err.response?.data?.message || 'Registration failed';
+      toast.error(message);
+      
+      // If already registered error, update state
+      if (message.toLowerCase().includes('already registered')) {
+        setAlreadyRegistered(true);
+      }
     } finally {
       setLoadingRegister(false);
     }
   };
 
+  // Helper to get location string
+  const getLocationString = (event) => {
+    if (!event) return 'Venue TBD';
+    
+    if (event.isOnline) return 'Online Event';
+    
+    if (typeof event.location === 'object' && event.location !== null) {
+      const city = event.location.city || '';
+      const state = event.location.state || event.state || '';
+      return `${city}${city && state ? ', ' : ''}${state}` || 'Venue TBD';
+    }
+    
+    const location = event.location || '';
+    const state = event.state || '';
+    return `${location}${location && state ? ', ' : ''}${state}` || 'Venue TBD';
+  };
+
   if (!event) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-purple-950 via-purple-900 to-purple-800 flex items-center justify-center">
-        <div className="text-white text-xl">Loading event details...</div>
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
+          <div className="text-white text-xl">Loading event details...</div>
+        </div>
       </div>
     );
   }
 
   const cover = event.coverImage || `https://source.unsplash.com/featured/?${encodeURIComponent(event.title || event.category || 'event')}`;
   const seatsPercent = event.totalSeats > 0 ? Math.round((event.seatsBooked / event.totalSeats) * 100) : 0;
+  const seatsRemaining = event.totalSeats - (event.seatsBooked || 0);
 
-  // FIXED: Check if current user is the organizer
-  // Handle both direct organizerId and nested organizer object
+  // Check if current user is the organizer
   const eventOrganizerId = event.organizerId || event.organizer?._id || event.organizer;
   const isOrganizerOwner = isSignedIn && user?.id && eventOrganizerId && String(user.id) === String(eventOrganizerId);
 
@@ -135,11 +194,8 @@ export default function EventDetails() {
                   </svg>
                 </div>
                 <div>
-                  <div className="font-semibold text-lg">{event.venue}</div>
-                  <div className="text-gray-300">
-                    {event.location?.city || event.location || 'Online'}
-                    {event.location?.state || event.state ? `, ${event.location?.state || event.state}` : ''}
-                  </div>
+                  <div className="font-semibold text-lg">{event.venue || 'Venue TBD'}</div>
+                  <div className="text-gray-300">{getLocationString(event)}</div>
                   {event.mapLink && !event.isOnline && (
                     <Button 
                       variant="link" 
@@ -170,7 +226,7 @@ export default function EventDetails() {
                 <div className="flex justify-between items-center">
                   <span className="text-gray-300">Seats Available:</span>
                   <span className="text-white font-semibold">
-                    {event.totalSeats - (event.seatsBooked || 0)} / {event.totalSeats}
+                    {seatsRemaining} / {event.totalSeats}
                   </span>
                 </div>
                 <Progress value={seatsPercent} className="w-full" />
@@ -185,8 +241,8 @@ export default function EventDetails() {
                 <div className="text-2xl font-bold text-white">
                   {event.price > 0 ? `₹${event.price}` : 'Free'}
                 </div>
-                <Badge variant={event.totalSeats - (event.seatsBooked || 0) > 10 ? "secondary" : "destructive"}>
-                  {event.totalSeats > 0 ? `${event.totalSeats - (event.seatsBooked || 0)} seats left` : 'Unlimited'}
+                <Badge variant={seatsRemaining > 10 ? "secondary" : "destructive"}>
+                  {event.totalSeats > 0 ? `${seatsRemaining} seats left` : 'Unlimited'}
                 </Badge>
               </div>
 
@@ -209,16 +265,28 @@ export default function EventDetails() {
                 {/* Register Button */}
                 <Button 
                   onClick={register} 
-                  disabled={loadingRegister || event.seatsBooked >= event.totalSeats || alreadyRegistered} 
+                  disabled={loadingRegister || checkingRegistration || seatsRemaining <= 0 || alreadyRegistered} 
                   className="w-full text-lg font-semibold py-6"
                 >
                   {loadingRegister ? 'Processing...' : 
-                   alreadyRegistered ? 'Already Registered' : 
-                   event.seatsBooked >= event.totalSeats ? 'Sold Out' : 
+                   checkingRegistration ? 'Checking...' :
+                   alreadyRegistered ? '✓ Already Registered' : 
+                   seatsRemaining <= 0 ? 'Sold Out' : 
                    'Register Now'}
                 </Button>
 
-                {/* FIXED: Edit Button for Organizer - Correct Route */}
+                {/* Show link to tickets if already registered */}
+                {alreadyRegistered && (
+                  <Button 
+                    variant="outline" 
+                    onClick={() => navigate('/tickets')}
+                    className="w-full border-green-500 text-green-400 hover:bg-green-500/10"
+                  >
+                    🎫 View Your Ticket
+                  </Button>
+                )}
+
+                {/* Edit Button for Organizer */}
                 {isOrganizerOwner && (
                   <Button 
                     variant="outline" 
