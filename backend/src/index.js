@@ -6,6 +6,13 @@ const cors = require('cors');
 const connectDB = require('./config/db');
 const { initSockets } = require('./sockets');
 
+app.use(cors({
+  origin: [
+    "https://ai-event-management-delta.vercel.app",
+    "http://localhost:5173"
+  ],
+  credentials: true
+}));
 // ============================================
 // ROUTES
 // ============================================
@@ -25,9 +32,13 @@ initSockets(server);
 // MIDDLEWARE
 // ============================================
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+  origin: [
+    "https://ai-event-management-delta.vercel.app",
+    "http://localhost:5173"
+  ],
   credentials: true
 }));
+
 app.use(express.json());
 
 // Request logging (development)
