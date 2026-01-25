@@ -5,6 +5,7 @@ import EventCard from "../components/EventCard";
 import FeaturedCarousel from "../components/FeaturedCarousel";
 import SectionReveal from "../components/SectionReveal";
 import { FilterContext } from "../context/FilterContext";
+import { ChevronRight } from 'lucide-react';
 
 export default function Home() {
   const [events, setEvents] = useState([]);
@@ -44,69 +45,86 @@ export default function Home() {
   const nearYou = events.slice(0, 4);
   const recommended = popular;
 
+  // Categories with colors
+  const categories = [
+    { key: 'Tech', emoji: '💻', color: 'from-blue-500/20 to-cyan-500/20' },
+    { key: 'Music', emoji: '🎵', color: 'from-purple-500/20 to-pink-500/20' },
+    { key: 'Workshops', emoji: '🛠️', color: 'from-amber-500/20 to-orange-500/20' },
+    { key: 'Health', emoji: '🧘', color: 'from-green-500/20 to-emerald-500/20' },
+    { key: 'Sports', emoji: '🏅', color: 'from-red-500/20 to-rose-500/20' },
+    { key: 'Business', emoji: '💼', color: 'from-gray-500/20 to-slate-500/20' },
+  ];
+
   return (
-    <main className="pt-28 md:pt-24">
+    <main className="pt-20 sm:pt-24 md:pt-28">
       {/* Hero Carousel */}
       <FeaturedCarousel />
 
-      <div className="max-w-7xl mx-auto px-6 py-8 ">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
         {/* Events Near You */}
-      <SectionReveal className="mb-12">
-        <div className="flex justify-between items-center mb-4">
-          <div>
-            <h2 className="text-3xl font-bold">Events Near You</h2>
-            <p className="text-sm text-muted-foreground">Happening in{" "}{stateSelection === "All" ? "your area" : stateSelection}</p>
-          </div>
-          <Link to="/explore" className="text-sm text-primary">View All →</Link>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {nearYou.map((e) => (
-            <EventCard key={e._id} event={e} />
-          ))}
-        </div>
-      </SectionReveal>
-
-      {/* Browse by Category */}
-      <SectionReveal className="mb-12">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-2xl font-bold">Browse by Category</h2>
-          <Link to="/explore" className="text-sm text-primary">View All →</Link>
-        </div>
-
-        <div className="flex gap-3 overflow-x-auto pb-2 -mx-1">
-          {[
-            { key: 'Tech', emoji: '💻' },
-            { key: 'Music', emoji: '🎵' },
-            { key: 'Workshops', emoji: '🛠️' },
-            { key: 'Health', emoji: '🧘' },
-            { key: 'Sports', emoji: '🏅' },
-            { key: 'Business', emoji: '💼' },
-          ].map((c) => (
-            <Link
-              key={c.key}
-              to={`/explore?category=${encodeURIComponent(c.key)}`}
-              className="inline-flex items-center gap-3 px-4 py-3 bg-surface/60 hover:bg-surface/80 rounded-lg shadow-sm min-w-[140px] flex-shrink-0"
+        <SectionReveal className="mb-8 sm:mb-12">
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 mb-4 sm:mb-6">
+            <div>
+              <h2 className="text-2xl sm:text-3xl font-bold">Events Near You</h2>
+              <p className="text-xs sm:text-sm text-muted-foreground mt-0.5 sm:mt-1">
+                Happening in {stateSelection === "All" ? "your area" : stateSelection}
+              </p>
+            </div>
+            <Link 
+              to="/explore" 
+              className="text-sm text-primary flex items-center gap-1 hover:gap-2 transition-all self-start sm:self-auto"
             >
-              <span className="text-2xl">{c.emoji}</span>
-              <span className="font-medium">{c.key}</span>
+              View All <ChevronRight className="h-4 w-4" />
             </Link>
-          ))}
-        </div>
-      </SectionReveal>
+          </div>
+
+          {/* Responsive Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
+            {nearYou.map((e) => (
+              <EventCard key={e._id} event={e} />
+            ))}
+          </div>
+        </SectionReveal>
+
+        {/* Browse by Category */}
+        <SectionReveal className="mb-8 sm:mb-12">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl sm:text-2xl font-bold">Browse by Category</h2>
+            <Link 
+              to="/explore" 
+              className="text-sm text-primary flex items-center gap-1 hover:gap-2 transition-all"
+            >
+              View All <ChevronRight className="h-4 w-4" />
+            </Link>
+          </div>
+
+          {/* Horizontal scroll on mobile, grid on larger screens */}
+          <div className="flex gap-3 overflow-x-auto pb-2 -mx-4 px-4 sm:mx-0 sm:px-0 sm:grid sm:grid-cols-3 md:grid-cols-6 sm:overflow-visible scrollbar-hide">
+            {categories.map((c) => (
+              <Link
+                key={c.key}
+                to={`/explore?category=${encodeURIComponent(c.key)}`}
+                className={`flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2.5 sm:py-3 bg-gradient-to-br ${c.color} hover:scale-105 rounded-lg sm:rounded-xl shadow-sm min-w-[120px] sm:min-w-0 flex-shrink-0 sm:flex-shrink transition-transform border border-white/5`}
+              >
+                <span className="text-xl sm:text-2xl">{c.emoji}</span>
+                <span className="font-medium text-sm sm:text-base whitespace-nowrap">{c.key}</span>
+              </Link>
+            ))}
+          </div>
+        </SectionReveal>
 
         {/* Recommended */}
-        <section>
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-2xl font-bold">Recommended for You</h2>
+        <SectionReveal>
+          <div className="flex justify-between items-center mb-4 sm:mb-6">
+            <h2 className="text-xl sm:text-2xl font-bold">Recommended for You</h2>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
             {recommended.map((e) => (
               <EventCard key={e._id} event={e} />
             ))}
           </div>
-        </section>
+        </SectionReveal>
       </div>
     </main>
   );

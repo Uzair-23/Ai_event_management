@@ -2,6 +2,15 @@ module.exports = {
   content: ['./index.html', './src/**/*.{js,jsx,ts,tsx}'],
   darkMode: 'class',
   theme: {
+    // Custom breakpoints
+    screens: {
+      'xs': '475px',
+      'sm': '640px',
+      'md': '768px',
+      'lg': '1024px',
+      'xl': '1280px',
+      '2xl': '1536px',
+    },
     extend: {
       colors: {
         'bg-900': '#0b0f17',
@@ -25,6 +34,22 @@ module.exports = {
       },
       animation: {
         shimmer: 'shimmer 2.4s linear infinite'
+      },
+      // Responsive spacing
+      spacing: {
+        '18': '4.5rem',
+        '88': '22rem',
+      },
+      // Min/max widths
+      minWidth: {
+        'xs': '20rem',
+      },
+      maxWidth: {
+        '8xl': '88rem',
+      },
+      // Font sizes
+      fontSize: {
+        'xxs': ['0.625rem', { lineHeight: '0.875rem' }],
       }
     },
   },
